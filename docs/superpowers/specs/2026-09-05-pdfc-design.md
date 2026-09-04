@@ -202,8 +202,9 @@ error and reports it the same way rather than letting it escape.
 ### 3.7 Output paths (`planning.py`)
 
 - Single output, target is a file path → written exactly there.
-- Multiple outputs (page rendering, `split --each`) and target is a directory,
-  or a path ending in `/` → `<input-stem>-NNN.<ext>` inside it.
+- Multiple outputs (page rendering, `split --each`) and target is a directory —
+  an existing directory, or any path with no extension → `<input-stem>-NNN.<ext>`
+  inside it. (A trailing `/` cannot be the signal: `Path` normalises it away.)
 - Multiple outputs and target is a file path → `-NNN` inserted before the
   extension: `out/page.png` becomes `out/page-001.png`.
 - Zero padding is the width of the highest page number, minimum 3.
