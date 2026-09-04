@@ -245,7 +245,10 @@ reporter never invents one.
 | split / pages | splitting | split |
 | rotate | rotating | rotated |
 | compress | compressing | compressed |
-| ocr | scanning | scanned |
+| ocr | I SEE YOU | I SAW YOU |
+
+Verbs are left-aligned and padded to the width of the widest verb in the run,
+so the OCR pair does not misalign the other steps' columns.
 
 The completion line carries what was produced: file count or output name, total
 bytes, elapsed time. A multi-step route prints one such line per step, so
