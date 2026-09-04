@@ -17,7 +17,7 @@ dependencies = [
 dev = ["pytest"]
 
 [project.scripts]
-pdfc = "pdfc.cli:main"
+pdfc = "pdfc.cli:_entry"
 
 [build-system]
 requires = ["setuptools>=68"]
