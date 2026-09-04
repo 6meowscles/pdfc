@@ -28,6 +28,22 @@ def convert(source_fmt, target_fmt, source, target, tmp_path, reporter=None):
     return execute(plan)
 
 
+def _pdf_with_page_text(tmp_path, texts, name="generated.pdf"):
+    """Build a PDF with one page per string in `texts`, each page holding that text.
+
+    Kept local to this file (rather than added to tests/conftest.py) so it doesn't
+    disturb other tests that assert on sample_pdf's exact content and page count.
+    """
+    path = tmp_path / name
+    doc = pymupdf.open()
+    for text in texts:
+        page = doc.new_page()
+        page.insert_text((72, 72), text, fontsize=12)
+    doc.save(path)
+    doc.close()
+    return path
+
+
 def test_pdf_to_txt_extracts_the_page_text(sample_pdf, tmp_path):
     outputs = convert(Format.PDF, Format.TXT, sample_pdf, tmp_path / "out.txt", tmp_path)
     text = outputs[0].read_text()
@@ -83,7 +99,28 @@ def test_scanned_pdf_warns_about_ocr(tmp_path):
     assert any("pdfc ocr" in w for w in reporter.warnings)
 
 
-def test_text_rich_pdf_does_not_warn(sample_pdf, tmp_path):
+def test_text_rich_pdf_does_not_warn(tmp_path):
+    pages = [
+        "This page holds a full paragraph of real body text, well over fifty characters long.",
+        "Another page with plenty of readable prose to keep the average comfortably high.",
+        "A third page carries just as much text as the first two, so no page looks thin.",
+    ]
+    pdf = _pdf_with_page_text(tmp_path, pages)
     reporter = Recording()
-    convert(Format.PDF, Format.TXT, sample_pdf, tmp_path / "out.txt", tmp_path, reporter)
+    convert(Format.PDF, Format.TXT, pdf, tmp_path / "out.txt", tmp_path, reporter)
     assert reporter.warnings == []
+
+
+def test_scanned_guard_pins_the_boundary(tmp_path):
+    # Single-page PDFs where the extracted text is exactly 49 vs. 51 characters,
+    # straddling the MIN_CHARS_PER_PAGE = 50 threshold on either side.
+    just_under = _pdf_with_page_text(tmp_path, ["x" * 49], name="just_under.pdf")
+    just_over = _pdf_with_page_text(tmp_path, ["x" * 51], name="just_over.pdf")
+
+    under_reporter = Recording()
+    convert(Format.PDF, Format.TXT, just_under, tmp_path / "under.txt", tmp_path, under_reporter)
+    assert any("pdfc ocr" in w for w in under_reporter.warnings)
+
+    over_reporter = Recording()
+    convert(Format.PDF, Format.TXT, just_over, tmp_path / "over.txt", tmp_path, over_reporter)
+    assert over_reporter.warnings == []

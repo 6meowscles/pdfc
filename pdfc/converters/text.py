@@ -9,7 +9,7 @@ from pdfc.formats import Format
 from pdfc.planning import Step, output_paths
 from pdfc.registry import converter
 
-MIN_CHARS_PER_PAGE = 20
+MIN_CHARS_PER_PAGE = 50
 
 PAGE_CSS = """
 body { font-family: sans-serif; font-size: 11pt; line-height: 1.45; }
