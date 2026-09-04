@@ -53,8 +53,9 @@ pdfc routes                              # print the conversion graph and dep st
 |---|---|
 | `--dry-run` | Print the planned route and output paths; write nothing. |
 | `-f, --force` | Overwrite existing outputs. Without it, an existing output is an error. |
-| `-q, --quiet` | Suppress progress; errors still print to stderr. |
-| `-v, --verbose` | Print each step and show tracebacks on failure. |
+| `--progress {auto,bar,plain,none}` | Progress style; `auto` (default) picks `bar` on a TTY and `plain` otherwise. |
+| `-q, --quiet` | Equivalent to `--progress none`; errors still print to stderr. |
+| `-v, --verbose` | Print each step, the external commands invoked, per-step timings, and full tracebacks on failure. |
 | `--from FMT` | Override source format detection (required when input is `-`). |
 | `--to FMT` | Override target format detection. |
 
@@ -80,6 +81,7 @@ pdfc/
   registry.py       # converter edges + shortest-path routing
   planning.py       # Plan/Step objects, output path templating
   deps.py           # external binary probing and install hints
+  progress.py       # terminal reporting: -ing / -ed step lines
   pages.py          # page-range parsing ("1-5,9,12-")
   errors.py         # typed exceptions -> exit codes
   converters/
@@ -218,6 +220,55 @@ failure never leaves half-written outputs.
 stdout, permitted only for single-output routes. Both are limited to text
 formats and PDF in v1.
 
+### 3.9 Terminal output (`progress.py`)
+
+Every step reports itself twice through one line that rewrites in place: the
+present participle while it runs, the past tense when it finishes.
+
+```
+$ pdfc scan.pdf out/page.png --dpi 300
+
+  rendering  pdf → png  ████████████░░░░░░  8/12  0:03
+  ↓ same line, on completion
+  rendered   pdf → png  12 files → out/  4.2 MB  5.1s
+```
+
+**Verb table.** Each converter and subcommand declares its verb pair; the
+reporter never invents one.
+
+| Operation | In progress | Complete |
+|---|---|---|
+| PDF → raster | rendering | rendered |
+| Any other format change | converting | converted |
+| PDF → text/markdown | extracting | extracted |
+| merge | merging | merged |
+| split / pages | splitting | split |
+| rotate | rotating | rotated |
+| compress | compressing | compressed |
+| ocr | scanning | scanned |
+
+The completion line carries what was produced: file count or output name, total
+bytes, elapsed time. A multi-step route prints one such line per step, so
+`md → html → pdf` leaves two completed lines behind.
+
+**Rules that hold in every mode:**
+
+- All progress goes to **stderr**. `pdfc x.pdf - > out.txt` stays clean.
+- `--progress auto` resolves to `bar` only when stderr is a TTY; otherwise
+  `plain`, which prints the `-ing` line on start and appends the `-ed` line on
+  finish with no ANSI, no redraw, no bar.
+- `NO_COLOR` in the environment disables styling but keeps the redraw.
+- Steps that cannot report page counts (LibreOffice, ghostscript) show a
+  spinner in place of the bar; the verb pair is unchanged.
+- `none` prints nothing on success. Warnings and errors always print.
+- Under `-v`, the bar is suppressed in favour of plain lines, so the extra
+  diagnostic output isn't fighting a redraw for the same terminal row.
+
+The reporter is a small interface (`start(step)`, `advance(n)`, `finish(step,
+summary)`) with three implementations — bar, plain, null — so converters call
+the same methods regardless of mode and the choice is made once in `cli.py`.
+The bar implementation is the only thing that touches `rich`.
+
 ## 4. Error handling
 
 `errors.py` defines `PdfcError` and subclasses `BadInput` (1), `NoRoute` (2),
@@ -246,6 +297,13 @@ pytest, test-first throughout.
   tests, including malformed input.
 - **CLI** is exercised through click's `CliRunner`, asserting exit codes and
   stderr text.
+- **Progress reporting** is tested through the null and plain reporters against
+  a recording fake: that each step emits its `-ing` verb then its `-ed` verb,
+  that the verb comes from the operation's declared pair, that `auto` resolves
+  to `plain` when stderr is not a TTY, that `none` emits nothing on success but
+  still emits warnings, and that nothing reaches stdout. The bar reporter is
+  covered only for construction and mode selection — its rendering is rich's
+  concern, not ours.
 - Tests needing an absent binary are marked (`@pytest.mark.needs_libreoffice`)
   and skipped, so the suite passes on this machine today.
 
@@ -257,7 +315,7 @@ pytest, test-first throughout.
 ~/.local/bin/pdfc         # shim onto .venv/bin/pdfc
 ```
 
-Runtime pip dependencies: `click`, `pymupdf`, `pillow`, `markdown`,
+Runtime pip dependencies: `click`, `rich`, `pymupdf`, `pillow`, `markdown`,
 `weasyprint`, `ocrmypdf`. Dev: `pytest`.
 
 **Known install risk:** the system Python is 3.14.7, which is new enough that
