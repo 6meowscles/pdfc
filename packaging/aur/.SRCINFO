@@ -23,6 +23,6 @@ pkgbase = pdfc
 	optdepends = tesseract-data-eng: English training data for OCR
 	optdepends = ocrmypdf: OCR scanned PDFs (AUR)
 	source = pdfc-0.2.2.tar.gz::https://github.com/6meowscles/pdfc/archive/refs/tags/v0.2.2.tar.gz
-	sha256sums = PLACEHOLDER_REGENERATE_AFTER_TAGGING
+	sha256sums = be6371919367280866b3d58b256bd7795ba5f53c494e15349f8ac829096a32b1
 
 pkgname = pdfc
