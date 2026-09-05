@@ -172,5 +172,7 @@ def test_a_missing_ocrmypdf_is_a_typed_error_not_a_traceback(tmp_path, monkeypat
         )
     message = str(caught.value)
     assert "ocrmypdf" in message
-    assert "paru -S ocrmypdf" in message
+    # Which command to suggest depends on the distribution running this suite,
+    # so the wording is pinned per family in test_deps.py rather than here.
+    assert "install it with:" in message
     assert caught.value.exit_code == 3

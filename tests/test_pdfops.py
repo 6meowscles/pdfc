@@ -198,13 +198,18 @@ def test_compress_accepts_a_ghostscript_output_with_the_same_page_count(tmp_path
     assert page_count(out) == 4
 
 
-def test_compress_rejects_a_damaged_source_pdf(tmp_path):
+def test_compress_rejects_a_damaged_source_pdf(tmp_path, monkeypatch):
     """A file can pass the %PDF header check yet still be unreadable by
     pymupdf; the page-count lookup on the compress path must not let that
     raise straight through as an untyped failure."""
     source = tmp_path / "damaged.pdf"
     source.write_bytes(b"%PDF-1.4\ngarbage, no xref table here" * 5)
     out = tmp_path / "small.pdf"
+
+    # compress() looks the binary up before it reads the page count, so stub
+    # that away: the damaged source is what this test is about, and skipping
+    # wherever ghostscript is absent would lose the check in a build root.
+    monkeypatch.setattr(pdfops.deps, "require", lambda binary, operation: "gs")
 
     with pytest.raises(BadInput, match="damaged.pdf"):
         pdfops.compress(source, out, quality="ebook", reporter=NullReporter(), force=False)

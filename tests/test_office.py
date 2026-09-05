@@ -32,7 +32,7 @@ def test_office_edges_declare_libreoffice():
 def test_missing_libreoffice_is_reported_as_a_dependency_error():
     with pytest.raises(MissingDependency) as caught:
         REGISTRY.route(Format.DOCX, Format.PDF, deps.have)
-    assert "libreoffice-fresh" in str(caught.value)
+    assert "libreoffice" in str(caught.value)
 
 
 def test_docx_to_png_routes_through_pdf():
