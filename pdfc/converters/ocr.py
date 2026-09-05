@@ -5,15 +5,19 @@ from pathlib import Path
 from pdfc import deps, formats
 from pdfc.errors import BadInput, MissingDependency
 from pdfc.formats import Format
-from pdfc.planning import check_writable, output_paths
-from pdfc.progress import Reporter
+from pdfc.planning import check_writable, output_paths, stage_and_move
+from pdfc.progress import Reporter, human_size
 
 VERBS = ("I SEE YOU", "I SAW YOU")
 
 
 def available_languages() -> set[str]:
     binary = deps.require("tesseract", "ocr")
-    result = subprocess.run([binary, "--list-langs"], capture_output=True, text=True, check=True)
+    result = subprocess.run([binary, "--list-langs"], capture_output=True, text=True)
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "").strip().splitlines()
+        message = detail[-1] if detail else f"tesseract exited {result.returncode}"
+        raise BadInput(f"tesseract could not list its languages: {message}")
     lines = result.stdout.splitlines()
     return {line.strip() for line in lines[1:] if line.strip()}
 
@@ -36,17 +40,19 @@ def ocr_to_pdf(
     deps.require("gs", "ocr")
     validate_language(language)
     check_writable([target], force)
-    target.parent.mkdir(parents=True, exist_ok=True)
     reporter.start(VERBS, f"{source.name}  {language}", None)
-    ocrmypdf.ocr(
-        source,
-        target,
-        language=language,
-        force_ocr=force_ocr,
-        skip_text=not force_ocr,
-        progress_bar=False,
-    )
-    return target
+
+    def write(staged: Path) -> None:
+        ocrmypdf.ocr(
+            source,
+            staged,
+            language=language,
+            force_ocr=force_ocr,
+            skip_text=not force_ocr,
+            progress_bar=False,
+        )
+
+    return stage_and_move(target, write)
 
 
 def run_ocr(
@@ -59,13 +65,17 @@ def run_ocr(
     if target_format is Format.PDF:
         destination = output_paths(target, source.stem, 1, "pdf")[0]
         ocr_to_pdf(source, destination, language, force_ocr, reporter, force)
-        reporter.finish(f"{destination}  {destination.stat().st_size} B")
+        reporter.finish(f"{destination}  {human_size(destination.stat().st_size)}")
         return [destination]
 
     if target_format not in (Format.TXT, Format.MD):
         raise BadInput(
             f"ocr can write pdf, txt, or md; {target_format.value} is not one of them"
         )
+
+    # The route through a temp PDF cannot reject an existing output until the
+    # OCR has already run, so check it up front.
+    check_writable([target], force)
 
     from pdfc.cli import run_conversion
 

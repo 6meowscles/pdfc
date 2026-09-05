@@ -1,6 +1,5 @@
 import shutil
 import subprocess
-import tempfile
 from pathlib import Path
 
 import pymupdf
@@ -8,8 +7,8 @@ import pymupdf
 from pdfc import deps
 from pdfc.errors import BadInput
 from pdfc.pages import parse_pages
-from pdfc.planning import check_writable, output_paths
-from pdfc.progress import Reporter
+from pdfc.planning import check_writable, output_paths, stage_and_move
+from pdfc.progress import Reporter, human_size
 
 QUALITIES = ("screen", "ebook", "printer", "prepress")
 ANGLES = (90, 180, 270, -90)
@@ -24,30 +23,29 @@ def _require_pdf(path: Path) -> None:
         raise BadInput(f"{path} is not a PDF")
 
 
-def _validate_gs_output(staged: Path) -> None:
+def _page_count(path: Path) -> int:
+    with pymupdf.open(path) as doc:
+        return doc.page_count
+
+
+def _validate_gs_output(staged: Path, expected_pages: int) -> None:
     """Ghostscript can exit 0 while writing an empty or truncated file (e.g. on
-    malformed or encrypted input). Confirm the result is actually a readable PDF
-    before treating it as a candidate to move into place."""
+    malformed or encrypted input). Its subtler failure on a damaged PDF is to
+    silently drop pages, leaving a perfectly readable but incomplete result, so
+    the page count has to be compared with the source's, not merely be >= 1."""
     if not staged.exists() or staged.stat().st_size == 0:
         raise BadInput("ghostscript produced an empty output file")
     _require_pdf(staged)
     try:
-        with pymupdf.open(staged) as doc:
-            if doc.page_count < 1:
-                raise BadInput("ghostscript produced a PDF with no pages")
-    except BadInput:
-        raise
+        pages = _page_count(staged)
     except Exception as error:
         raise BadInput(f"ghostscript produced an unreadable PDF: {error}") from error
-
-
-def _size(byte_count: int) -> str:
-    value = float(byte_count)
-    for unit in ("B", "KB", "MB", "GB"):
-        if value < 1024 or unit == "GB":
-            return f"{value:.1f} {unit}"
-        value /= 1024
-    return f"{value:.1f} GB"
+    if pages < 1:
+        raise BadInput("ghostscript produced a PDF with no pages")
+    if pages != expected_pages:
+        raise BadInput(
+            f"ghostscript dropped pages: {expected_pages} in, {pages} out"
+        )
 
 
 def merge(sources: list[Path], target: Path, reporter: Reporter, force: bool) -> list[Path]:
@@ -56,15 +54,20 @@ def merge(sources: list[Path], target: Path, reporter: Reporter, force: bool) ->
     destination = output_paths(target, sources[0].stem, 1, "pdf")[0]
     check_writable([destination], force)
     reporter.start(("merging", "merged"), f"{len(sources)} files → pdf", len(sources))
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    out = pymupdf.open()
-    for source in sources:
-        with pymupdf.open(source) as doc:
-            out.insert_pdf(doc)
-        reporter.advance()
-    out.save(destination)
-    out.close()
-    reporter.finish(f"{destination}  {_size(destination.stat().st_size)}")
+
+    def write(staged: Path) -> None:
+        out = pymupdf.open()
+        try:
+            for source in sources:
+                with pymupdf.open(source) as doc:
+                    out.insert_pdf(doc)
+                reporter.advance()
+            out.save(staged)
+        finally:
+            out.close()
+
+    stage_and_move(destination, write)
+    reporter.finish(f"{destination}  {human_size(destination.stat().st_size)}")
     return [destination]
 
 
@@ -88,14 +91,22 @@ def split(
         destinations = output_paths(target, source.stem, len(groups), "pdf")
         check_writable(destinations, force)
         reporter.start(("splitting", "split"), f"{source.name} → {len(groups)} files", len(groups))
+
+        def writer(group: list[int]):
+            def write(staged: Path) -> None:
+                out = pymupdf.open()
+                try:
+                    out.insert_pdf(doc, from_page=group[0] - 1, to_page=group[-1] - 1)
+                    if len(group) != group[-1] - group[0] + 1:
+                        out.select([page - group[0] for page in group])
+                    out.save(staged)
+                finally:
+                    out.close()
+
+            return write
+
         for group, destination in zip(groups, destinations, strict=True):
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            out = pymupdf.open()
-            out.insert_pdf(doc, from_page=group[0] - 1, to_page=group[-1] - 1)
-            if len(group) != group[-1] - group[0] + 1:
-                out.select([page - group[0] for page in group])
-            out.save(destination)
-            out.close()
+            stage_and_move(destination, writer(group))
             reporter.advance()
     reporter.finish(f"{len(destinations)} files → {destinations[0].parent}")
     return destinations
@@ -127,8 +138,7 @@ def rotate(
             page = doc[number - 1]
             page.set_rotation((page.rotation + angle) % 360)
             reporter.advance()
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        doc.save(destination)
+        stage_and_move(destination, doc.save)
     reporter.finish(f"{destination}  {len(selected)} pages")
     return [destination]
 
@@ -149,11 +159,12 @@ def compress(
     destination = output_paths(target, source.stem, 1, "pdf")[0]
     check_writable([destination], force)
     before = source.stat().st_size
+    expected_pages = _page_count(source)
     reporter.start(("compressing", "compressed"), f"{source.name}  {quality}", None)
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="pdfc-gs-") as scratch:
-        staged = Path(scratch) / "out.pdf"
-        subprocess.run(
+    sizes: dict[str, int] = {}
+
+    def write(staged: Path) -> None:
+        result = subprocess.run(
             [
                 binary,
                 "-sDEVICE=pdfwrite",
@@ -165,17 +176,26 @@ def compress(
                 f"-sOutputFile={staged}",
                 str(source),
             ],
-            check=True,
             capture_output=True,
+            text=True,
         )
-        _validate_gs_output(staged)
-        after = staged.stat().st_size
-        if after >= before:
-            shutil.copyfile(source, destination)
-            reporter.finish(
-                f"{destination}  {_size(before)} → {_size(after)}; kept original (compression made it larger)"
-            )
-            return [destination]
-        shutil.move(str(staged), destination)
-    reporter.finish(f"{destination}  {_size(before)} → {_size(after)}")
+        if result.returncode != 0:
+            detail = (result.stderr or result.stdout or "").strip().splitlines()
+            message = detail[-1] if detail else f"ghostscript exited {result.returncode}"
+            raise BadInput(f"ghostscript failed compressing {source.name}: {message}")
+        _validate_gs_output(staged, expected_pages)
+        sizes["after"] = staged.stat().st_size
+        if sizes["after"] >= before:
+            # Compression made it bigger; stage the original instead, so the
+            # destination is still written exactly once.
+            shutil.copyfile(source, staged)
+
+    stage_and_move(destination, write)
+    after = sizes["after"]
+    if after >= before:
+        reporter.finish(
+            f"{destination}  {human_size(before)} → {human_size(after)}; kept original (compression made it larger)"
+        )
+    else:
+        reporter.finish(f"{destination}  {human_size(before)} → {human_size(after)}")
     return [destination]

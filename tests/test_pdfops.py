@@ -133,7 +133,7 @@ def test_compress_rejects_a_corrupt_ghostscript_output(tmp_path, monkeypatch):
     def fake_require(binary, operation):
         return "gs"
 
-    def fake_run(args, check, capture_output):
+    def fake_run(args, **kwargs):
         staged = Path(args[-2].split("=", 1)[1])
         staged.write_bytes(b"")  # ghostscript "succeeded" but wrote nothing
         return subprocess.CompletedProcess(args, 0)
@@ -158,3 +158,94 @@ def test_merge_command_is_reachable_from_the_cli(tmp_path):
     result = runner.invoke(main, ["merge", str(first), str(second), "-o", str(out)])
     assert result.exit_code == 0
     assert page_count(out) == 2
+
+
+def _stub_ghostscript(monkeypatch, fake_run):
+    monkeypatch.setattr(pdfops.deps, "require", lambda binary, operation: "gs")
+    monkeypatch.setattr(pdfops.subprocess, "run", fake_run)
+
+
+def _staged_path(args) -> Path:
+    return Path(args[-2].split("=", 1)[1])
+
+
+def test_compress_rejects_ghostscript_silently_dropping_pages(tmp_path, monkeypatch):
+    """Ghostscript's characteristic failure on a damaged PDF is not an empty
+    file but a valid, readable, *shorter* one, which every other check passes."""
+    source = pdf_with(tmp_path / "in.pdf", 5)
+    out = tmp_path / "out.pdf"
+
+    def fake_run(args, **kwargs):
+        pdf_with(_staged_path(args), 2)
+        return subprocess.CompletedProcess(args, 0)
+
+    _stub_ghostscript(monkeypatch, fake_run)
+    with pytest.raises(BadInput, match="dropped pages: 5 in, 2 out"):
+        pdfops.compress(source, out, quality="ebook", reporter=NullReporter(), force=False)
+    assert not out.exists()
+
+
+def test_compress_accepts_a_ghostscript_output_with_the_same_page_count(tmp_path, monkeypatch):
+    source = pdf_with(tmp_path / "in.pdf", 4)
+    out = tmp_path / "out.pdf"
+
+    def fake_run(args, **kwargs):
+        pdf_with(_staged_path(args), 4)
+        return subprocess.CompletedProcess(args, 0)
+
+    _stub_ghostscript(monkeypatch, fake_run)
+    pdfops.compress(source, out, quality="ebook", reporter=NullReporter(), force=False)
+    assert page_count(out) == 4
+
+
+def test_compress_reports_a_ghostscript_failure_with_its_own_message(tmp_path, monkeypatch):
+    source = pdf_with(tmp_path / "in.pdf", 2)
+
+    def fake_run(args, **kwargs):
+        return subprocess.CompletedProcess(
+            args, 1, stdout="", stderr="**** Unable to open the initial device.\n"
+        )
+
+    _stub_ghostscript(monkeypatch, fake_run)
+    with pytest.raises(BadInput, match="Unable to open the initial device"):
+        pdfops.compress(
+            source, tmp_path / "out.pdf", quality="ebook", reporter=NullReporter(), force=False
+        )
+
+
+def test_a_failed_compress_leaves_the_existing_destination_intact(tmp_path, monkeypatch):
+    """--force clears the way for the write, so the write itself must not be
+    able to truncate what is already there."""
+    source = pdf_with(tmp_path / "in.pdf", 3)
+    out = tmp_path / "out.pdf"
+    out.write_bytes(b"%PDF-precious-and-irreplaceable")
+
+    def fake_run(args, **kwargs):
+        _staged_path(args).write_bytes(b"%PDF-trunc")  # died part-way through
+        return subprocess.CompletedProcess(args, 0)
+
+    _stub_ghostscript(monkeypatch, fake_run)
+    with pytest.raises(BadInput):
+        pdfops.compress(source, out, quality="ebook", reporter=NullReporter(), force=True)
+    assert out.read_bytes() == b"%PDF-precious-and-irreplaceable"
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["in.pdf", "out.pdf"]
+
+
+def test_every_pdf_operation_writes_through_the_staging_helper(tmp_path, monkeypatch):
+    calls = []
+    real = pdfops.stage_and_move
+
+    def spy(destination, write):
+        calls.append(destination)
+        return real(destination, write)
+
+    monkeypatch.setattr(pdfops, "stage_and_move", spy)
+    source = pdf_with(tmp_path / "in.pdf", 3)
+    pdfops.merge([source], tmp_path / "m.pdf", NullReporter(), force=False)
+    pdfops.split(
+        source, tmp_path / "s.pdf", pages="1-2", every=None, each=False,
+        reporter=NullReporter(), force=False,
+    )
+    pdfops.rotate(source, tmp_path / "r.pdf", 90, None, NullReporter(), force=False)
+    pdfops.extract_pages(source, tmp_path / "p.pdf", "2", NullReporter(), force=False)
+    assert [path.name for path in calls] == ["m.pdf", "s.pdf", "r.pdf", "p.pdf"]
