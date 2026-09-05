@@ -1,3 +1,6 @@
+import subprocess
+from pathlib import Path
+
 import pymupdf
 import pytest
 from click.testing import CliRunner
@@ -23,6 +26,11 @@ def page_count(path):
         return doc.page_count
 
 
+def page_texts(path):
+    with pymupdf.open(path) as doc:
+        return [page.get_text().strip() for page in doc]
+
+
 def test_merge_concatenates_in_argument_order(tmp_path):
     first = pdf_with(tmp_path / "a.pdf", 2)
     second = pdf_with(tmp_path / "b.pdf", 3)
@@ -40,7 +48,7 @@ def test_split_by_page_selection(tmp_path):
     source = pdf_with(tmp_path / "in.pdf", 10)
     out = tmp_path / "sel.pdf"
     pdfops.split(source, out, pages="1-3,9", every=None, each=False, reporter=NullReporter(), force=False)
-    assert page_count(out) == 4
+    assert page_texts(out) == ["Page 1", "Page 2", "Page 3", "Page 9"]
 
 
 def test_split_every_n_writes_chunks(tmp_path):
@@ -114,6 +122,29 @@ def test_compress_produces_a_valid_pdf(tmp_path):
     pdfops.compress(source, out, quality="ebook", reporter=NullReporter(), force=False)
     assert out.read_bytes().startswith(b"%PDF")
     assert page_count(out) == 3
+
+
+def test_compress_rejects_a_corrupt_ghostscript_output(tmp_path, monkeypatch):
+    """Ghostscript can exit 0 while writing an empty or truncated file. Stub it
+    doing exactly that and confirm compress() refuses to treat it as a result."""
+    source = pdf_with(tmp_path / "in.pdf", 2)
+    out = tmp_path / "out.pdf"
+
+    def fake_require(binary, operation):
+        return "gs"
+
+    def fake_run(args, check, capture_output):
+        staged = Path(args[-2].split("=", 1)[1])
+        staged.write_bytes(b"")  # ghostscript "succeeded" but wrote nothing
+        return subprocess.CompletedProcess(args, 0)
+
+    monkeypatch.setattr(pdfops.deps, "require", fake_require)
+    monkeypatch.setattr(pdfops.subprocess, "run", fake_run)
+
+    with pytest.raises(BadInput, match="ghostscript"):
+        pdfops.compress(source, out, quality="ebook", reporter=NullReporter(), force=False)
+
+    assert not out.exists()
 
 
 def test_merge_command_is_reachable_from_the_cli(tmp_path):

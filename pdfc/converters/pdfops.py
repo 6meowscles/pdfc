@@ -18,8 +18,27 @@ ANGLES = (90, 180, 270, -90)
 def _require_pdf(path: Path) -> None:
     if not path.exists():
         raise BadInput(f"cannot read {path}")
-    if not path.read_bytes()[:4] == b"%PDF":
+    with path.open("rb") as handle:
+        header = handle.read(4)
+    if header != b"%PDF":
         raise BadInput(f"{path} is not a PDF")
+
+
+def _validate_gs_output(staged: Path) -> None:
+    """Ghostscript can exit 0 while writing an empty or truncated file (e.g. on
+    malformed or encrypted input). Confirm the result is actually a readable PDF
+    before treating it as a candidate to move into place."""
+    if not staged.exists() or staged.stat().st_size == 0:
+        raise BadInput("ghostscript produced an empty output file")
+    _require_pdf(staged)
+    try:
+        with pymupdf.open(staged) as doc:
+            if doc.page_count < 1:
+                raise BadInput("ghostscript produced a PDF with no pages")
+    except BadInput:
+        raise
+    except Exception as error:
+        raise BadInput(f"ghostscript produced an unreadable PDF: {error}") from error
 
 
 def _size(byte_count: int) -> str:
@@ -149,11 +168,12 @@ def compress(
             check=True,
             capture_output=True,
         )
+        _validate_gs_output(staged)
         after = staged.stat().st_size
         if after >= before:
             shutil.copyfile(source, destination)
             reporter.finish(
-                f"{destination}  {_size(before)} unchanged (compression made it larger)"
+                f"{destination}  {_size(before)} → {_size(after)}; kept original (compression made it larger)"
             )
             return [destination]
         shutil.move(str(staged), destination)
