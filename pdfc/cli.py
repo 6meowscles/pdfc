@@ -139,6 +139,92 @@ def routes() -> None:
         click.echo(f"{edge.source.value:<8} {edge.target.value:<8} {status:<10} {needs}")
 
 
+from pdfc.converters import pdfops
+
+
+def _reporter_for(quiet: bool, progress_mode: str, verbose: bool, verbs: tuple[str, str]):
+    mode = "none" if quiet else ("plain" if verbose and progress_mode in ("auto", "bar") else progress_mode)
+    width = progress.verb_width_for([verbs])
+    return progress.make_reporter(mode, width, sys.stderr)
+
+
+@main.command()
+@click.argument("sources", nargs=-1, required=True, type=click.Path(path_type=Path))
+@click.option("-o", "--output", required=True, type=click.Path(path_type=Path))
+@_common_options
+def merge(sources, output, dry_run, force, progress_mode, quiet, verbose):
+    """Concatenate PDFs in the order given."""
+    reporter = _reporter_for(quiet, progress_mode, verbose, ("merging", "merged"))
+    if dry_run:
+        click.echo(f"merge: {len(sources)} files → {output}")
+        return
+    pdfops.merge(list(sources), output, reporter, force)
+
+
+@main.command()
+@click.argument("source", type=click.Path(path_type=Path))
+@click.option("-o", "--output", required=True, type=click.Path(path_type=Path))
+@click.option("--pages", default=None, help='Page selection, e.g. "1-5,9".')
+@click.option("--every", type=int, default=None, help="Write chunks of N pages.")
+@click.option("--each", is_flag=True, help="Write one file per page.")
+@_common_options
+def split(source, output, pages, every, each, dry_run, force, progress_mode, quiet, verbose):
+    """Split a PDF by selection, by chunk size, or into single pages."""
+    reporter = _reporter_for(quiet, progress_mode, verbose, ("splitting", "split"))
+    if dry_run:
+        click.echo(f"split: {source} → {output}")
+        return
+    pdfops.split(source, output, pages, every, each, reporter, force)
+
+
+@main.command()
+@click.argument("source", type=click.Path(path_type=Path))
+@click.option("-o", "--output", required=True, type=click.Path(path_type=Path))
+@click.option("--angle", type=int, required=True, help="90, 180, 270, or -90.")
+@click.option("--pages", default=None, help="Limit rotation to these pages.")
+@_common_options
+def rotate(source, output, angle, pages, dry_run, force, progress_mode, quiet, verbose):
+    """Rotate every page, or the pages named by --pages."""
+    reporter = _reporter_for(quiet, progress_mode, verbose, ("rotating", "rotated"))
+    if dry_run:
+        click.echo(f"rotate: {source} by {angle}° → {output}")
+        return
+    pdfops.rotate(source, output, angle, pages, reporter, force)
+
+
+@main.command()
+@click.argument("source", type=click.Path(path_type=Path))
+@click.option("-o", "--output", required=True, type=click.Path(path_type=Path))
+@click.option(
+    "--quality",
+    type=click.Choice(pdfops.QUALITIES),
+    default="ebook",
+    show_default=True,
+)
+@_common_options
+def compress(source, output, quality, dry_run, force, progress_mode, quiet, verbose):
+    """Shrink a PDF with ghostscript."""
+    reporter = _reporter_for(quiet, progress_mode, verbose, ("compressing", "compressed"))
+    if dry_run:
+        click.echo(f"compress: {source} at /{quality} → {output}")
+        return
+    pdfops.compress(source, output, quality, reporter, force)
+
+
+@main.command("pages")
+@click.argument("source", type=click.Path(path_type=Path))
+@click.option("-o", "--output", required=True, type=click.Path(path_type=Path))
+@click.option("--pages", "selection", required=True, help='Page selection, e.g. "2-4".')
+@_common_options
+def pages_command(source, output, selection, dry_run, force, progress_mode, quiet, verbose):
+    """Extract a page range into a new PDF."""
+    reporter = _reporter_for(quiet, progress_mode, verbose, ("splitting", "split"))
+    if dry_run:
+        click.echo(f"pages: {selection} of {source} → {output}")
+        return
+    pdfops.extract_pages(source, output, selection, reporter, force)
+
+
 def _entry() -> int:
     try:
         return main.main(standalone_mode=False) or 0
