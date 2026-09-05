@@ -114,6 +114,10 @@ def run_conversion(
         reporter = progress.make_reporter(mode, width, sys.stderr)
 
         plan = planning.build_plan(route, source, target, options, reporter, scratch)
+        if to_stdout:
+            # The stdout route stages through a scratch file the user never
+            # named, so there is no destination path worth reporting.
+            plan.steps[-1].destination_hint = ""
         if dry_run:
             click.echo(plan.describe())
             return []

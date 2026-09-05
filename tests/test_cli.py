@@ -123,3 +123,10 @@ def test_extensionless_target_that_is_a_file_exits_1(sample_md, tmp_path):
     assert result.exit_code == 1
     assert "exists and is not a directory" in result.stderr
     assert blocker.read_text() == "all:\n"
+
+
+def test_a_stdout_run_does_not_print_its_scratch_path(sample_pdf):
+    result = run([str(sample_pdf), "-", "--to", "txt", "--progress", "plain"])
+    assert result.exit_code == 0
+    assert "pdfc-" not in result.stderr
+    assert "stdout.txt" not in result.stderr
