@@ -1,3 +1,5 @@
+import importlib.util
+
 import pymupdf
 import pytest
 
@@ -10,6 +12,13 @@ pytestmark = pytest.mark.needs_tesseract
 
 skip_without_tesseract = pytest.mark.skipif(
     not deps.have("tesseract"), reason="tesseract not installed"
+)
+
+# ocrmypdf is an optional dependency in a distro install, so a test that
+# actually drives it has to skip when it is absent -- the same courtesy the
+# libreoffice and tesseract tests already get.
+skip_without_ocrmypdf = pytest.mark.skipif(
+    importlib.util.find_spec("ocrmypdf") is None, reason="ocrmypdf not installed"
 )
 
 
@@ -60,6 +69,7 @@ def test_validate_language_rejects_a_missing_pack():
 
 
 @skip_without_tesseract
+@skip_without_ocrmypdf
 def test_ocr_adds_a_text_layer(tmp_path):
     source = scanned_pdf(tmp_path / "scan.pdf")
     with pymupdf.open(source) as doc:
@@ -71,6 +81,7 @@ def test_ocr_adds_a_text_layer(tmp_path):
 
 
 @skip_without_tesseract
+@skip_without_ocrmypdf
 def test_ocr_uses_the_i_see_you_verbs(tmp_path):
     source = scanned_pdf(tmp_path / "scan.pdf")
     reporter = Recording()
@@ -80,6 +91,7 @@ def test_ocr_uses_the_i_see_you_verbs(tmp_path):
 
 
 @skip_without_tesseract
+@skip_without_ocrmypdf
 def test_ocr_to_text_target_writes_text(tmp_path):
     source = scanned_pdf(tmp_path / "scan.pdf")
     out = tmp_path / "out.txt"
@@ -125,6 +137,7 @@ def test_ocr_refuses_an_existing_text_output_before_doing_the_work(tmp_path, mon
 
 
 @skip_without_tesseract
+@skip_without_ocrmypdf
 def test_ocr_writes_its_pdf_through_the_staging_helper(tmp_path, monkeypatch):
     calls = []
     real = ocr.stage_and_move

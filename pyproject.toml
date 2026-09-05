@@ -31,4 +31,5 @@ markers = [
     "needs_libreoffice: requires the libreoffice binary",
     "needs_tesseract: requires the tesseract binary",
     "needs_gs: requires the ghostscript binary",
+    "needs_ocrmypdf: requires the ocrmypdf package",
 ]
