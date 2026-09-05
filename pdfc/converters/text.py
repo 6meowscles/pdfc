@@ -117,7 +117,7 @@ def md_to_html(step: Step) -> None:
     destination.write_text(_document(step.origin.stem, body), encoding="utf-8")
     step.outputs.append(destination)
     step.reporter.advance()
-    step.reporter.finish(step.summary())
+    step.reporter.finish(step.summary(human_size(destination.stat().st_size)))
 
 
 @converter(Format.TXT, Format.HTML)
@@ -130,7 +130,7 @@ def txt_to_html(step: Step) -> None:
     )
     step.outputs.append(destination)
     step.reporter.advance()
-    step.reporter.finish(step.summary())
+    step.reporter.finish(step.summary(human_size(destination.stat().st_size)))
 
 
 def _document(title: str, body: str) -> str:

@@ -116,3 +116,20 @@ def test_a_step_with_no_destination_leaves_no_gap_in_the_line():
     line = stream.getvalue().splitlines()[-1]
     assert line.startswith("converted  md → html  ")
     assert "  " not in line[len("converted  md → html  "):]
+
+
+@pytest.mark.parametrize(
+    "byte_count,expected",
+    [
+        (0, "0 B"),
+        (1, "1 B"),
+        (378, "378 B"),
+        (1023, "1023 B"),
+        (1024, "1.0 KB"),
+        (1536, "1.5 KB"),
+        (1048576, "1.0 MB"),
+        (1073741824, "1.0 GB"),
+    ],
+)
+def test_human_size_renders_bytes_whole_and_larger_units_to_one_decimal(byte_count, expected):
+    assert progress.human_size(byte_count) == expected

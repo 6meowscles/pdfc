@@ -17,9 +17,13 @@ class Recording(NullReporter):
     def __init__(self):
         super().__init__()
         self.warnings = []
+        self.summaries = []
 
     def warn(self, message):
         self.warnings.append(message)
+
+    def finish(self, summary):
+        self.summaries.append(summary)
 
 
 def convert(source_fmt, target_fmt, source, target, tmp_path, reporter=None):
@@ -180,3 +184,19 @@ def test_non_ascii_content_round_trips_through_pdf_to_txt(tmp_path):
     scratch.mkdir()
     outputs = convert(Format.PDF, Format.TXT, pdf, tmp_path / "out.txt", scratch)
     assert "Café" in outputs[0].read_text(encoding="utf-8")
+
+
+
+def test_every_step_reports_what_it_produced(sample_md, tmp_path):
+    """An intermediate step names no path, but must still say what it made --
+    otherwise its completion line carries nothing but an elapsed time."""
+    reporter = Recording()
+    convert(Format.MD, Format.PDF, sample_md, tmp_path / "out.pdf", tmp_path, reporter)
+    assert len(reporter.summaries) == 2, reporter.summaries
+    intermediate, final = reporter.summaries
+    # The intermediate md -> html step has no user-facing path, so its summary is
+    # the size alone; it must not be empty.
+    assert intermediate.strip()
+    assert "B" in intermediate
+    # The final step names the destination the user asked for.
+    assert "out.pdf" in final

@@ -12,7 +12,8 @@ def human_size(byte_count: float) -> str:
     value = float(byte_count)
     for unit in ("B", "KB", "MB", "GB"):
         if value < 1024 or unit == "GB":
-            return f"{value:.1f} {unit}"
+            # Bytes are whole things; a fractional count of them reads oddly.
+            return f"{value:.0f} B" if unit == "B" else f"{value:.1f} {unit}"
         value /= 1024
     return f"{value:.1f} GB"
 
