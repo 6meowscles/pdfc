@@ -225,6 +225,23 @@ def pages_command(source, output, selection, dry_run, force, progress_mode, quie
     pdfops.extract_pages(source, output, selection, reporter, force)
 
 
+@main.command()
+@click.argument("source", type=click.Path(path_type=Path))
+@click.option("-o", "--output", required=True, type=click.Path(path_type=Path))
+@click.option("--lang", default="eng", show_default=True, help="tesseract language code.")
+@click.option("--force-ocr", is_flag=True, help="Re-OCR pages that already carry text.")
+@_common_options
+def ocr(source, output, lang, force_ocr, dry_run, force, progress_mode, quiet, verbose):
+    """Recognise text in a scanned PDF."""
+    from pdfc.converters import ocr as ocr_module
+
+    reporter = _reporter_for(quiet, progress_mode, verbose, ocr_module.VERBS)
+    if dry_run:
+        click.echo(f"ocr: {source} in {lang} → {output}")
+        return
+    ocr_module.run_ocr(source, output, lang, force_ocr, reporter, force)
+
+
 def _entry() -> int:
     try:
         return main.main(standalone_mode=False) or 0
