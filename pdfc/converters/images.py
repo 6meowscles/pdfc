@@ -3,6 +3,7 @@ from PIL import Image
 
 from pdfc.formats import RASTER, Format
 from pdfc.planning import Step, output_paths
+from pdfc.progress import human_size
 from pdfc.registry import converter
 
 # Pillow's format name for each raster Format.
@@ -18,7 +19,7 @@ def _render(step: Step, target_format: Format) -> None:
     dpi = int(step.options.get("dpi", 150))
     with pymupdf.open(step.source) as doc:
         count = doc.page_count
-        paths = output_paths(step.target, step.source.stem, count, target_format.value)
+        paths = output_paths(step.target, step.origin.stem, count, target_format.value)
         step.reporter.start(step.edge.verbs, step.edge.label, count)
         for page, path in zip(doc, paths, strict=True):
             pixmap = page.get_pixmap(dpi=dpi)
@@ -28,12 +29,15 @@ def _render(step: Step, target_format: Format) -> None:
             step.outputs.append(path)
             step.reporter.advance()
     total = sum(p.stat().st_size for p in step.outputs)
-    step.reporter.finish(f"{len(step.outputs)} files → {step.destination_hint}  {_size(total)}")
+    files = f"{len(step.outputs)} files"
+    if step.destination_hint:
+        files += f" → {step.destination_hint}"
+    step.reporter.finish(f"{files}  {human_size(total)}")
 
 
 def _to_pdf(step: Step) -> None:
     step.reporter.start(step.edge.verbs, step.edge.label, 1)
-    paths = output_paths(step.target, step.source.stem, 1, "pdf")
+    paths = output_paths(step.target, step.origin.stem, 1, "pdf")
     destination = paths[0]
     destination.parent.mkdir(parents=True, exist_ok=True)
     with Image.open(step.source) as image:
@@ -41,7 +45,7 @@ def _to_pdf(step: Step) -> None:
     frames[0].save(destination, "PDF", save_all=True, append_images=frames[1:])
     step.outputs.append(destination)
     step.reporter.advance()
-    step.reporter.finish(f"{step.destination_hint}  {_size(destination.stat().st_size)}")
+    step.reporter.finish(step.summary(human_size(destination.stat().st_size)))
 
 
 def _frames(image: Image.Image) -> list[Image.Image]:
@@ -56,14 +60,6 @@ def _frames(image: Image.Image) -> list[Image.Image]:
         frames.append(image.copy())
         index += 1
     return frames or [image.copy()]
-
-
-def _size(byte_count: int) -> str:
-    for unit in ("B", "KB", "MB", "GB"):
-        if byte_count < 1024 or unit == "GB":
-            return f"{byte_count:.1f} {unit}" if unit != "B" else f"{byte_count} B"
-        byte_count /= 1024
-    return f"{byte_count:.1f} GB"
 
 
 def _register() -> None:

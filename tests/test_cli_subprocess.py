@@ -51,3 +51,37 @@ def test_missing_input_file_exits_1_on_the_real_entry_point(tmp_path):
 def test_success_exits_0_on_the_real_entry_point():
     result = run(["--version"])
     assert result.returncode == 0
+
+
+def test_non_ascii_text_survives_an_ascii_locale(tmp_path):
+    """The HTML pdfc writes declares utf-8, so its text I/O must not follow the
+    platform default encoding. Run the real entry point under the C locale,
+    where that default is ANSI_X3.4-1968, and check the bytes match the
+    declaration instead of blowing up on the first accented character."""
+    import os
+
+    source = tmp_path / "resume.md"
+    source.write_text("# Résumé\n\nCafé — naïve façade.\n", encoding="utf-8")
+    target = tmp_path / "out.html"
+    environment = {
+        **os.environ,
+        "LC_ALL": "C",
+        "LANG": "C",
+        "PYTHONUTF8": "0",
+        "PYTHONCOERCECLOCALE": "0",
+    }
+    result = run([str(source), str(target)], env=environment)
+    assert result.returncode == 0, result.stderr
+    assert "Café — naïve façade.".encode() in target.read_bytes()
+
+
+def test_extensionless_target_that_is_a_file_is_a_typed_error(tmp_path):
+    source = tmp_path / "notes.md"
+    source.write_text("# hi\n")
+    blocker = tmp_path / "Makefile"
+    blocker.write_text("all:\n")
+    result = run([str(source), str(blocker), "--to", "pdf"])
+    assert result.returncode == 1
+    assert "exists and is not a directory" in result.stderr
+    assert "traceback" not in result.stderr.lower()
+    assert blocker.read_text() == "all:\n"

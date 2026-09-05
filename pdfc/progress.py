@@ -7,6 +7,16 @@ from typing import TextIO
 MIN_VERB_WIDTH = 9
 
 
+def human_size(byte_count: float) -> str:
+    """One rendering of a byte count, so every converter agrees on it."""
+    value = float(byte_count)
+    for unit in ("B", "KB", "MB", "GB"):
+        if value < 1024 or unit == "GB":
+            return f"{value:.1f} {unit}"
+        value /= 1024
+    return f"{value:.1f} GB"
+
+
 def verb_width_for(verb_pairs: Iterable[tuple[str, str]]) -> int:
     widths = [len(verb) for pair in verb_pairs for verb in pair]
     return max([MIN_VERB_WIDTH, *widths]) if widths else MIN_VERB_WIDTH

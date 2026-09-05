@@ -117,6 +117,12 @@ def run_conversion(
         if dry_run:
             click.echo(plan.describe())
             return []
+        # Refuse an existing output before doing the work rather than after it.
+        # The output count is not always knowable ahead of the run, so execute()
+        # still checks what was actually produced.
+        predicted = plan.predicted_outputs()
+        if predicted is not None:
+            planning.check_writable(predicted, force)
         outputs = planning.execute(plan, force=force)
 
         if to_stdout:

@@ -7,6 +7,7 @@ import pymupdf
 from pdfc.errors import MissingDependency
 from pdfc.formats import Format
 from pdfc.planning import Step, output_paths
+from pdfc.progress import human_size
 from pdfc.registry import converter
 
 MIN_CHARS_PER_PAGE = 50
@@ -20,7 +21,7 @@ td, th { border: 1px solid #999; padding: 4px 8px; }
 
 
 def _single_target(step: Step, extension: str):
-    path = output_paths(step.target, step.source.stem, 1, extension)[0]
+    path = output_paths(step.target, step.origin.stem, 1, extension)[0]
     path.parent.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -43,10 +44,10 @@ def pdf_to_txt(step: Step) -> None:
             step.reporter.advance()
         page_count = doc.page_count
     text = "\n\n".join(chunks)
-    destination.write_text(text)
+    destination.write_text(text, encoding="utf-8")
     step.outputs.append(destination)
     _warn_if_scanned(step, text, page_count)
-    step.reporter.finish(f"{step.destination_hint}  {len(text)} chars")
+    step.reporter.finish(step.summary(f"{len(text)} chars"))
 
 
 @converter(Format.PDF, Format.MD, verbs=("extracting", "extracted"))
@@ -61,10 +62,10 @@ def pdf_to_md(step: Step) -> None:
             step.reporter.advance()
         page_count = doc.page_count
     text = "\n".join(lines).strip() + "\n"
-    destination.write_text(text)
+    destination.write_text(text, encoding="utf-8")
     step.outputs.append(destination)
     _warn_if_scanned(step, text, page_count)
-    step.reporter.finish(f"{step.destination_hint}  {len(text)} chars")
+    step.reporter.finish(step.summary(f"{len(text)} chars"))
 
 
 def _page_to_markdown(page) -> list[str]:
@@ -110,23 +111,26 @@ def md_to_html(step: Step) -> None:
     destination = _single_target(step, "html")
     step.reporter.start(step.edge.verbs, step.edge.label, 1)
     body = markdown.markdown(
-        step.source.read_text(), extensions=["tables", "fenced_code", "sane_lists"]
+        step.source.read_text(encoding="utf-8"),
+        extensions=["tables", "fenced_code", "sane_lists"],
     )
-    destination.write_text(_document(step.source.stem, body))
+    destination.write_text(_document(step.origin.stem, body), encoding="utf-8")
     step.outputs.append(destination)
     step.reporter.advance()
-    step.reporter.finish(str(step.destination_hint))
+    step.reporter.finish(step.summary())
 
 
 @converter(Format.TXT, Format.HTML)
 def txt_to_html(step: Step) -> None:
     destination = _single_target(step, "html")
     step.reporter.start(step.edge.verbs, step.edge.label, 1)
-    escaped = html_module.escape(step.source.read_text())
-    destination.write_text(_document(step.source.stem, f"<pre>{escaped}</pre>"))
+    escaped = html_module.escape(step.source.read_text(encoding="utf-8"))
+    destination.write_text(
+        _document(step.origin.stem, f"<pre>{escaped}</pre>"), encoding="utf-8"
+    )
     step.outputs.append(destination)
     step.reporter.advance()
-    step.reporter.finish(str(step.destination_hint))
+    step.reporter.finish(step.summary())
 
 
 def _document(title: str, body: str) -> str:
@@ -154,4 +158,4 @@ def html_to_pdf(step: Step) -> None:
     step.reporter.start(step.edge.verbs, step.edge.label, None)
     HTML(filename=str(step.source), base_url=str(step.source.parent)).write_pdf(str(destination))
     step.outputs.append(destination)
-    step.reporter.finish(f"{step.destination_hint}  {destination.stat().st_size} B")
+    step.reporter.finish(step.summary(human_size(destination.stat().st_size)))

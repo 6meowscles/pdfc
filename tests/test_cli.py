@@ -1,29 +1,6 @@
-import pytest
 from click.testing import CliRunner
 
 from pdfc.cli import main
-from pdfc.formats import Format
-from pdfc.registry import REGISTRY
-
-
-def _dummy_pdf_to_txt(step) -> None:
-    """Writes fixed text so tests can exercise CLI plumbing (route dispatch,
-    stdin/stdout wiring) without depending on a real converter -- Task 9
-    leaves pdfc.converters empty, so no such edge exists yet."""
-    step.target.write_text("Page 1 of the sample document.")
-    step.outputs.append(step.target)
-
-
-@pytest.fixture
-def pdf_to_txt_edge():
-    """Temporarily registers a synthetic pdf -> txt edge on the real registry."""
-    edge = REGISTRY.register(
-        Format.PDF, Format.TXT, _dummy_pdf_to_txt, (), 1, ("extracting", "extracted")
-    )
-    try:
-        yield edge
-    finally:
-        REGISTRY._edges.remove(edge)
 
 
 def make_runner() -> CliRunner:
@@ -51,7 +28,7 @@ def test_known_subcommand_still_wins(sample_pdf):
     assert "source" in result.stdout.lower()
 
 
-def test_routes_marks_availability(pdf_to_txt_edge):
+def test_routes_marks_availability():
     result = run(["routes"])
     assert result.exit_code == 0
     assert "available" in result.stdout or "blocked" in result.stdout
@@ -81,7 +58,7 @@ def test_stdin_requires_a_from_format():
     assert "--from" in result.stderr
 
 
-def test_stdout_target_writes_the_conversion_to_stdout(sample_pdf, pdf_to_txt_edge):
+def test_stdout_target_writes_the_conversion_to_stdout(sample_pdf):
     result = run([str(sample_pdf), "-", "--to", "txt"])
     assert result.exit_code == 0
     assert "Page 1 of the sample document." in result.stdout
@@ -97,3 +74,52 @@ def test_unknown_format_override_exits_1(sample_pdf, tmp_path):
     result = run([str(sample_pdf), str(tmp_path / "out.png"), "--to", "bogus"])
     assert result.exit_code == 1
     assert "unknown format" in result.stderr
+
+
+def test_dry_run_prints_the_output_paths_not_just_the_target(sample_pdf, tmp_path):
+    result = run([str(sample_pdf), str(tmp_path / "shots" / "page.png"), "--dry-run"])
+    assert result.exit_code == 0
+    assert "route: pdf → png" in result.stdout
+    # sample_pdf has three pages, so three files are planned.
+    assert "page-001.png" in result.stdout
+    assert "page-003.png" in result.stdout
+    assert not (tmp_path / "shots").exists()
+
+
+def test_dry_run_names_a_directory_target_after_the_input(sample_md, tmp_path):
+    result = run([str(sample_md), str(tmp_path / "outdir"), "--to", "pdf", "--dry-run"])
+    assert result.exit_code == 0
+    assert str(tmp_path / "outdir" / "sample.pdf") in result.stdout
+
+
+def test_dry_run_falls_back_to_the_target_when_the_count_is_unknowable(sample_md, tmp_path):
+    # md -> html -> png would need the intermediate PDF to count its pages.
+    result = run([str(sample_md), str(tmp_path / "out.html"), "--dry-run"])
+    assert result.exit_code == 0
+    assert str(tmp_path / "out.html") in result.stdout
+
+
+def test_existing_output_is_refused_before_the_conversion_runs(sample_md, tmp_path):
+    target = tmp_path / "out.pdf"
+    target.write_text("previous output")
+    result = run([str(sample_md), str(target)])
+    assert result.exit_code == 1
+    assert "already exists" in result.stderr
+    assert target.read_text() == "previous output"
+
+
+def test_directory_target_names_the_output_after_the_input(sample_md, tmp_path):
+    outdir = tmp_path / "outdir"
+    result = run([str(sample_md), str(outdir), "--to", "pdf"])
+    assert result.exit_code == 0, result.stderr
+    assert (outdir / "sample.pdf").exists()
+    assert not (outdir / "step0.pdf").exists()
+
+
+def test_extensionless_target_that_is_a_file_exits_1(sample_md, tmp_path):
+    blocker = tmp_path / "Makefile"
+    blocker.write_text("all:\n")
+    result = run([str(sample_md), str(blocker), "--to", "pdf"])
+    assert result.exit_code == 1
+    assert "exists and is not a directory" in result.stderr
+    assert blocker.read_text() == "all:\n"

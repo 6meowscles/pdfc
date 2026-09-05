@@ -124,3 +124,59 @@ def test_scanned_guard_pins_the_boundary(tmp_path):
     over_reporter = Recording()
     convert(Format.PDF, Format.TXT, just_over, tmp_path / "over.txt", tmp_path, over_reporter)
     assert over_reporter.warnings == []
+
+
+def test_directory_target_names_the_output_after_the_original_input(sample_md, tmp_path):
+    """A two-hop md -> html -> pdf run into a directory must be named for the
+    user's input, not for the scratch file the last hop happens to read."""
+    outdir = tmp_path / "outdir"
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    outputs = convert(Format.MD, Format.PDF, sample_md, outdir, scratch)
+    assert outputs == [outdir / "sample.pdf"]
+    assert outputs[0].read_bytes().startswith(b"%PDF")
+
+
+def test_single_hop_into_a_directory_also_uses_the_input_stem(sample_md, tmp_path):
+    outdir = tmp_path / "html"
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    outputs = convert(Format.MD, Format.HTML, sample_md, outdir, scratch)
+    assert outputs == [outdir / "sample.html"]
+
+
+def test_intermediate_scratch_paths_never_reach_the_terminal(sample_md, tmp_path):
+    import io
+
+    from pdfc.progress import PlainReporter
+
+    stream = io.StringIO()
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    target = tmp_path / "out.pdf"
+    convert(Format.MD, Format.PDF, sample_md, target, scratch, PlainReporter(stream, 9))
+    printed = stream.getvalue()
+    assert "step0" not in printed
+    assert str(scratch) not in printed
+    assert str(target) in printed
+
+
+def test_non_ascii_content_round_trips_through_md_to_html(tmp_path):
+    source = tmp_path / "resume.md"
+    source.write_text("# Résumé\n\nCafé — naïve façade, 日本語.\n", encoding="utf-8")
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    outputs = convert(Format.MD, Format.HTML, source, tmp_path / "out.html", scratch)
+    raw = outputs[0].read_bytes()
+    # The document declares utf-8, so the bytes on disk must actually be utf-8.
+    assert b"charset='utf-8'" in raw
+    assert "Café — naïve façade, 日本語.".encode() in raw
+    assert "Résumé" in outputs[0].read_text(encoding="utf-8")
+
+
+def test_non_ascii_content_round_trips_through_pdf_to_txt(tmp_path):
+    pdf = _pdf_with_page_text(tmp_path, ["Café naïve — Résumé"], name="accents.pdf")
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    outputs = convert(Format.PDF, Format.TXT, pdf, tmp_path / "out.txt", scratch)
+    assert "Café" in outputs[0].read_text(encoding="utf-8")

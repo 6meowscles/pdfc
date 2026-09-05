@@ -7,12 +7,13 @@ from pdfc import deps
 from pdfc.errors import BadInput
 from pdfc.formats import OFFICE, Format
 from pdfc.planning import Step, output_paths
+from pdfc.progress import human_size
 from pdfc.registry import converter
 
 
 def _libreoffice_convert(step: Step, extension: str) -> None:
     binary = deps.require("libreoffice", step.edge.label)
-    destination = output_paths(step.target, step.source.stem, 1, extension)[0]
+    destination = output_paths(step.target, step.origin.stem, 1, extension)[0]
     destination.parent.mkdir(parents=True, exist_ok=True)
     step.reporter.start(step.edge.verbs, step.edge.label, None)
     with tempfile.TemporaryDirectory(prefix="pdfc-lo-") as scratch:
@@ -40,7 +41,7 @@ def _libreoffice_convert(step: Step, extension: str) -> None:
             raise BadInput(f"libreoffice failed converting {step.source.name}: {message}")
         shutil.move(str(produced[0]), destination)
     step.outputs.append(destination)
-    step.reporter.finish(f"{step.destination_hint}  {destination.stat().st_size} B")
+    step.reporter.finish(step.summary(human_size(destination.stat().st_size)))
 
 
 def _register() -> None:

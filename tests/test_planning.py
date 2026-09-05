@@ -4,7 +4,16 @@ import pytest
 
 from pdfc.errors import BadInput
 from pdfc.formats import Format
-from pdfc.planning import Plan, Step, build_plan, check_writable, execute, output_paths
+from pdfc.planning import (
+    Plan,
+    Step,
+    build_plan,
+    check_target,
+    check_writable,
+    execute,
+    output_paths,
+    stage_and_move,
+)
 from pdfc.progress import NullReporter
 from pdfc.registry import Registry
 
@@ -139,3 +148,123 @@ def test_verb_pairs_collects_every_step(tmp_path):
     route = registry.route(Format.PDF, Format.PNG, lambda _b: True)
     plan = build_plan(route, tmp_path / "a.pdf", tmp_path / "b.png", {}, NullReporter(), tmp_path)
     assert plan.verb_pairs == [("rendering", "rendered")]
+
+
+def test_check_target_rejects_an_existing_non_directory(tmp_path):
+    existing = tmp_path / "Makefile"
+    existing.write_text("all:\n")
+    with pytest.raises(BadInput, match="exists and is not a directory"):
+        check_target(existing)
+
+
+def test_check_target_accepts_a_directory_and_a_new_path(tmp_path):
+    directory = tmp_path / "outdir"
+    directory.mkdir()
+    check_target(directory)
+    check_target(tmp_path / "does-not-exist-yet")
+    check_target(tmp_path / "out.pdf")
+
+
+def test_existing_file_without_a_suffix_is_not_a_directory_target(tmp_path):
+    existing = tmp_path / "Makefile"
+    existing.write_text("all:\n")
+    # It must not template as "Makefile/scan.png"; the file target rules apply.
+    assert output_paths(existing, "scan", 1, "png") == [tmp_path / "Makefile.png"]
+
+
+def test_build_plan_rejects_an_extensionless_target_that_is_a_file(tmp_path):
+    registry = Registry()
+    registry.register(Format.HTML, Format.PDF, lambda s: None, (), 1, ("converting", "converted"))
+    route = registry.route(Format.HTML, Format.PDF, lambda _b: True)
+    existing = tmp_path / "Makefile"
+    existing.write_text("all:\n")
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    with pytest.raises(BadInput, match="exists and is not a directory"):
+        build_plan(route, tmp_path / "in.html", existing, {}, NullReporter(), scratch)
+
+
+def test_every_step_carries_the_original_input_as_its_origin(tmp_path):
+    registry = Registry()
+    registry.register(Format.MD, Format.HTML, lambda s: None, (), 1, ("converting", "converted"))
+    registry.register(Format.HTML, Format.PDF, lambda s: None, (), 1, ("converting", "converted"))
+    route = registry.route(Format.MD, Format.PDF, lambda _b: True)
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    source = tmp_path / "notes.md"
+    plan = build_plan(route, source, tmp_path / "out.pdf", {}, NullReporter(), scratch)
+    assert [step.origin for step in plan.steps] == [source, source]
+    # The second step's *source* is still the scratch file it reads from.
+    assert plan.steps[1].source.name == "step0.html"
+
+
+def _fan_out(count: int, extension: str):
+    def convert(step: Step) -> None:
+        for path in output_paths(step.target, step.origin.stem, count, extension):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("page")
+            step.outputs.append(path)
+
+    return convert
+
+
+def _pass_through(step: Step) -> None:
+    step.target.write_text("intermediate")
+    step.outputs.append(step.target)
+
+
+def test_multi_hop_into_a_directory_names_outputs_after_the_original_input(tmp_path):
+    registry = Registry()
+    registry.register(Format.MD, Format.HTML, _pass_through, (), 1, ("converting", "converted"))
+    registry.register(
+        Format.HTML, Format.PNG, _fan_out(3, "png"), (), 1, ("rendering", "rendered")
+    )
+    route = registry.route(Format.MD, Format.PNG, lambda _b: True)
+    source = tmp_path / "notes.md"
+    source.write_text("# hi\n")
+    outdir = tmp_path / "shots"
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    plan = build_plan(route, source, outdir, {}, NullReporter(), scratch)
+    outputs = execute(plan)
+    # Not step0-001.png: the scratch file the last hop reads is not the user's input.
+    assert [path.name for path in outputs] == [
+        "notes-001.png",
+        "notes-002.png",
+        "notes-003.png",
+    ]
+    assert {path.parent for path in outputs} == {outdir}
+
+
+def test_intermediate_steps_carry_no_destination_hint(tmp_path):
+    registry = Registry()
+    registry.register(Format.MD, Format.HTML, lambda s: None, (), 1, ("converting", "converted"))
+    registry.register(Format.HTML, Format.PDF, lambda s: None, (), 1, ("converting", "converted"))
+    route = registry.route(Format.MD, Format.PDF, lambda _b: True)
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    plan = build_plan(route, tmp_path / "in.md", tmp_path / "out.pdf", {}, NullReporter(), scratch)
+    assert plan.steps[0].destination_hint == ""
+    assert plan.steps[0].summary("12 chars") == "12 chars"
+    assert plan.steps[1].summary("12 chars") == f"{tmp_path / 'out.pdf'}  12 chars"
+
+
+def test_stage_and_move_leaves_an_existing_file_intact_when_the_write_fails(tmp_path):
+    destination = tmp_path / "keep.pdf"
+    destination.write_text("precious")
+
+    def boom(staged: Path) -> None:
+        staged.write_text("half a file")
+        raise RuntimeError("interrupted")
+
+    with pytest.raises(RuntimeError):
+        stage_and_move(destination, boom)
+    assert destination.read_text() == "precious"
+    assert [p.name for p in tmp_path.iterdir()] == ["keep.pdf"]
+
+
+def test_stage_and_move_writes_the_destination_on_success(tmp_path):
+    destination = tmp_path / "nested" / "out.pdf"
+    stage_and_move(destination, lambda staged: staged.write_text("done"))
+    assert destination.read_text() == "done"
+    assert [p.name for p in destination.parent.iterdir()] == ["out.pdf"]

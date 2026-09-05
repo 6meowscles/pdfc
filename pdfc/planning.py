@@ -1,10 +1,13 @@
+import os
 import shutil
-from collections.abc import Iterable
+import tempfile
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from pdfc.errors import BadInput
+from pdfc.formats import RASTER, Format
 from pdfc.progress import Reporter
 from pdfc.registry import Edge
 
@@ -18,12 +21,18 @@ class Step:
     target: Path
     options: dict[str, Any]
     reporter: Reporter
-    destination_hint: Path
+    destination_hint: Path | str
+    origin: Path
     outputs: list[Path] = field(default_factory=list)
 
     @property
     def label(self) -> str:
         return self.edge.label
+
+    def summary(self, *parts: str) -> str:
+        """Join the destination with the step's details, dropping the
+        destination for an internal step whose path the user never named."""
+        return "  ".join(part for part in (str(self.destination_hint), *parts) if part)
 
 
 @dataclass
@@ -36,18 +45,55 @@ class Plan:
     def verb_pairs(self) -> list[tuple[str, str]]:
         return [step.edge.verbs for step in self.steps]
 
+    def predicted_outputs(self) -> list[Path] | None:
+        """The files this plan will write, when they can be known without
+        running it, else None. Only a page-per-file step is hard to predict,
+        and then only when its own input does not exist yet."""
+        last = self.steps[-1]
+        extension = last.edge.target.value
+        if last.edge.target not in RASTER:
+            return output_paths(self.target, last.origin.stem, 1, extension)
+        count = _page_count(last.source) if last.edge.source is Format.PDF else None
+        if count is None:
+            return None
+        return output_paths(self.target, last.origin.stem, count, extension)
+
     def describe(self) -> str:
         chain = [self.steps[0].edge.source.value] + [s.edge.target.value for s in self.steps]
         lines = [f"route: {' → '.join(chain)}"]
         for step in self.steps:
-            lines.append(f"  {step.edge.label}  {step.source.name} → {step.destination_hint}")
+            lines.append(f"  {step.edge.label}  {step.source.name}")
+        lines.append("outputs:")
+        for path in self.predicted_outputs() or [self.target]:
+            lines.append(f"  {path}")
         return "\n".join(lines)
 
 
+def _page_count(path: Path) -> int | None:
+    """The page count of an existing PDF, or None when that cannot be read."""
+    try:
+        import pymupdf
+
+        with pymupdf.open(path) as doc:
+            return doc.page_count
+    except Exception:
+        return None
+
+
 def _is_directory_target(target: Path) -> bool:
-    # An existing directory, or a path with no extension, is a directory target.
+    # An existing path is a directory target only if it really is a directory;
+    # a path that does not exist yet is one when it carries no extension.
     # Path() normalises a trailing slash away, so it cannot be used as the signal.
-    return target.is_dir() or target.suffix == ""
+    if target.exists():
+        return target.is_dir()
+    return target.suffix == ""
+
+
+def check_target(target: Path) -> None:
+    """Reject a suffix-less target that already exists as something other than a
+    directory, which would otherwise only surface as a mkdir() traceback."""
+    if target.suffix == "" and target.exists() and not target.is_dir():
+        raise BadInput(f"{target} exists and is not a directory")
 
 
 def output_paths(target: Path, stem: str, count: int, extension: str) -> list[Path]:
@@ -71,6 +117,23 @@ def check_writable(paths: Iterable[Path], force: bool) -> None:
             raise BadInput(f"{path} already exists; pass --force to overwrite")
 
 
+def stage_and_move(destination: Path, write: Callable[[Path], None]) -> Path:
+    """Run `write` against a temp path and rename the result into place.
+
+    A failure or interrupt part-way through therefore never leaves a truncated
+    file where a valid one used to be. The temp file is a sibling of the
+    destination, so the rename is an atomic same-filesystem operation."""
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    scratch = Path(tempfile.mkdtemp(dir=destination.parent, prefix=f".{destination.name}.pdfc-"))
+    try:
+        staged = scratch / destination.name
+        write(staged)
+        os.replace(staged, destination)
+    finally:
+        shutil.rmtree(scratch, ignore_errors=True)
+    return destination
+
+
 def build_plan(
     route: list[Edge],
     source: Path,
@@ -79,6 +142,7 @@ def build_plan(
     reporter: Reporter,
     scratch: Path,
 ) -> Plan:
+    check_target(target)
     staging = scratch / "final"
     staging.mkdir(parents=True, exist_ok=True)
     target_is_dir = _is_directory_target(target)
@@ -91,8 +155,10 @@ def build_plan(
     for index, edge in enumerate(route):
         last = index == len(route) - 1
         step_target = staged_target if last else scratch / f"step{index}.{edge.target.value}"
-        hint = target if last else step_target
-        steps.append(Step(edge, current, step_target, options, reporter, hint))
+        # Intermediate files live in a scratch dir the user never named, so only
+        # the final step has a destination worth printing.
+        hint: Path | str = target if last else ""
+        steps.append(Step(edge, current, step_target, options, reporter, hint, source))
         current = step_target
     return Plan(steps, target, target_is_dir)
 
