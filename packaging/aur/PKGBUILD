@@ -1,0 +1,57 @@
+# Maintainer: 6meowscles <mharshita2309@gmail.com>
+
+pkgname=pdfc
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Local PDF converter: images, text, markdown, HTML and office formats in and out of PDF, plus merge/split/rotate/compress and OCR"
+arch=('any')
+url="https://github.com/6meowscles/pdfc"
+license=('AGPL-3.0-or-later')
+depends=(
+  'python'
+  'python-click'
+  'python-markdown'
+  'python-pillow'
+  'python-pymupdf'
+  'python-rich'
+  'python-weasyprint'
+)
+makedepends=(
+  'python-build'
+  'python-installer'
+  'python-setuptools'
+  'python-wheel'
+)
+checkdepends=('python-pytest')
+optdepends=(
+  'libreoffice-fresh: convert docx, odt, pptx and xlsx to PDF, and PDF to docx'
+  'ghostscript: compress PDFs, and write the OCR output layer'
+  'tesseract: OCR scanned PDFs'
+  'tesseract-data-eng: English training data for OCR'
+  'ocrmypdf: OCR scanned PDFs (AUR)'
+)
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('c9ff14d78ba08ab0340289bada87dc8cd1d83200b0f9604deae040a8fe4fddc5')
+
+build() {
+  cd "$pkgname-$pkgver"
+  python -m build --wheel --no-isolation
+}
+
+check() {
+  cd "$pkgname-$pkgver"
+  # Conversions needing an absent optional tool skip themselves, so this passes
+  # in a clean chroot where libreoffice and tesseract are not installed.
+  python -m pytest
+}
+
+package() {
+  cd "$pkgname-$pkgver"
+  python -m installer --destdir="$pkgdir" dist/*.whl
+
+  install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+  install -Dm644 docs/design.md "$pkgdir/usr/share/doc/$pkgname/design.md"
+
+  # AGPL-3.0-or-later is a standard license shipped by the `licenses` package,
+  # so its text is not duplicated under /usr/share/licenses/$pkgname.
+}
