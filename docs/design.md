@@ -1,7 +1,7 @@
 # pdfc — a local PDF converter CLI
 
 **Date:** 2026-09-05
-**Status:** Approved design, ready for implementation planning
+**Status:** Implemented. This document describes the design as built.
 
 ## 1. Purpose
 

@@ -51,6 +51,12 @@ Progress goes to stderr, so piping stdout stays clean. `--progress
 bar|plain|none` overrides the default, which is a bar on a terminal and plain
 lines everywhere else.
 
+## Design
+
+`docs/design.md` covers the architecture: the converter registry, the
+two-hop routing rule, format detection, output-path templating, and the
+error/exit-code contract.
+
 ## Tests
 
     .venv/bin/pytest
