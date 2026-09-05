@@ -1,7 +1,7 @@
 # Maintainer: 6meowscles <mharshita2309@gmail.com>
 
 pkgname=pdfc
-pkgver=0.1.1
+pkgver=0.1.2
 pkgrel=1
 pkgdesc="Local PDF converter: images, text, markdown, HTML and office formats in and out of PDF, plus merge/split/rotate/compress and OCR"
 arch=('any')
@@ -31,7 +31,7 @@ optdepends=(
   'ocrmypdf: OCR scanned PDFs (AUR)'
 )
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('b7d097af5f089ec885b5b24bcd45b66b70e8af3fbd1d89ba24d1b19730ea95e9')
+sha256sums=('e4362ede46ebada606b53501c3507df88a3346cb63ba68f2c85d99ca4a4b0fec')
 
 build() {
   cd "$pkgname-$pkgver"
