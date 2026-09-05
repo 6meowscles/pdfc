@@ -14,10 +14,14 @@ dependencies = [
     "pillow",
     "markdown",
     "weasyprint",
-    "ocrmypdf",
 ]
 
 [project.optional-dependencies]
+# OCR is the one dependency the CLI can do without: it probes for ocrmypdf at
+# runtime and prints an install hint when it is missing, the same as it does
+# for libreoffice and tesseract. Declaring it hard would make every packaging
+# recipe pull the whole OCR stack in to satisfy metadata nothing enforces.
+ocr = ["ocrmypdf"]
 dev = ["pytest"]
 
 [project.scripts]

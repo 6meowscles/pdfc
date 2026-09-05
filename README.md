@@ -9,7 +9,8 @@ A local PDF converter. Everything runs on this machine; nothing is uploaded.
     pip install localpdf
 
 The distribution is called `localpdf` because PyPI already has a project too
-close to `pdfc`; the command it installs is still `pdfc`.
+close to `pdfc`; the command it installs is still `pdfc`. Add `[ocr]` if you
+want OCR: `pip install localpdf[ocr]`.
 
 ### Homebrew
 
@@ -93,8 +94,12 @@ apt, dnf, zypper or brew, chosen from `/etc/os-release`:
 
 `pdfc routes` lists every conversion up front and marks which are blocked.
 
-The pip install pulls ocrmypdf in automatically; a distro package leaves it
-optional.
+OCR is the one dependency no install method pulls in for you, because it
+drags the whole tesseract stack behind it. Add it deliberately:
+
+    pip install localpdf[ocr]
+
+or install your distribution's own `ocrmypdf` package.
 
 ## Progress output
 
