@@ -180,5 +180,11 @@ def execute(plan: Plan, force: bool = False) -> list[Path]:
     check_writable(destinations, force)
     directory.mkdir(parents=True, exist_ok=True)
     for staged, destination in zip(produced, destinations, strict=True):
-        shutil.move(str(staged), destination)
+        # The scratch directory can be a different filesystem from the
+        # destination (e.g. a tmpfs /tmp vs. a real disk $HOME), so plain
+        # shutil.move can fall back to copying straight over an existing
+        # destination file. Route through stage_and_move instead, so this
+        # last hop gets the same stage-beside-destination-then-os.replace
+        # guarantee as every other write in this module.
+        stage_and_move(destination, lambda dest_staged, source=staged: shutil.copyfile(source, dest_staged))
     return destinations

@@ -1,7 +1,9 @@
+import shutil
 from pathlib import Path
 
 import pytest
 
+from pdfc import planning
 from pdfc.errors import BadInput
 from pdfc.formats import Format
 from pdfc.planning import (
@@ -268,3 +270,42 @@ def test_stage_and_move_writes_the_destination_on_success(tmp_path):
     stage_and_move(destination, lambda staged: staged.write_text("done"))
     assert destination.read_text() == "done"
     assert [p.name for p in destination.parent.iterdir()] == ["out.pdf"]
+
+
+def test_a_failed_multi_output_move_leaves_an_existing_destination_intact(tmp_path, monkeypatch):
+    """execute()'s final move must give every output the same atomic-replace
+    guarantee as stage_and_move, even though the staged files live in a
+    scratch directory that can be on a different filesystem from the target.
+    A crash moving one output must not touch a pre-existing file at another
+    output's destination, and must not leave a stray temp directory behind."""
+    registry = Registry()
+    registry.register(Format.MD, Format.HTML, _pass_through, (), 1, ("converting", "converted"))
+    registry.register(Format.HTML, Format.PNG, _fan_out(3, "png"), (), 1, ("rendering", "rendered"))
+    route = registry.route(Format.MD, Format.PNG, lambda _b: True)
+    source = tmp_path / "notes.md"
+    source.write_text("# hi\n")
+    outdir = tmp_path / "shots"
+    outdir.mkdir()
+    precious = outdir / "notes-002.png"
+    precious.write_bytes(b"precious-content-untouched")
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    plan = build_plan(route, source, outdir, {}, NullReporter(), scratch)
+
+    real_copyfile = shutil.copyfile
+
+    def flaky_copyfile(source_path, dest_path):
+        if Path(dest_path).name == "notes-002.png":
+            Path(dest_path).write_bytes(b"half-written-garbage")
+            raise RuntimeError("interrupted mid-copy")
+        return real_copyfile(source_path, dest_path)
+
+    monkeypatch.setattr(planning.shutil, "copyfile", flaky_copyfile)
+
+    with pytest.raises(RuntimeError):
+        execute(plan, force=True)
+
+    assert precious.read_bytes() == b"precious-content-untouched"
+    # Only the already-succeeded first output and the untouched pre-existing
+    # file remain; no third output and no stray ".notes-...-pdfc-*" temp dirs.
+    assert sorted(p.name for p in outdir.iterdir()) == ["notes-001.png", "notes-002.png"]
