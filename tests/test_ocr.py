@@ -138,3 +138,26 @@ def test_ocr_writes_its_pdf_through_the_staging_helper(tmp_path, monkeypatch):
     out = tmp_path / "out.pdf"
     ocr.run_ocr(source, out, "eng", False, NullReporter(), force=False)
     assert calls == [out]
+
+
+def test_a_missing_ocrmypdf_is_a_typed_error_not_a_traceback(tmp_path, monkeypatch):
+    """ocrmypdf is an optional package in a distro install, so its absence must
+    report like any other missing dependency."""
+    import builtins
+
+    real_import = builtins.__import__
+
+    def refuse_ocrmypdf(name, *args, **kwargs):
+        if name == "ocrmypdf":
+            raise ImportError("No module named 'ocrmypdf'")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", refuse_ocrmypdf)
+    with pytest.raises(MissingDependency) as caught:
+        ocr.ocr_to_pdf(
+            tmp_path / "in.pdf", tmp_path / "out.pdf", "eng", False, NullReporter(), force=False
+        )
+    message = str(caught.value)
+    assert "ocrmypdf" in message
+    assert "paru -S ocrmypdf" in message
+    assert caught.value.exit_code == 3

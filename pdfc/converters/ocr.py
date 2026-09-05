@@ -34,7 +34,17 @@ def validate_language(language: str) -> None:
 def ocr_to_pdf(
     source: Path, target: Path, language: str, force_ocr: bool, reporter: Reporter, force: bool
 ) -> Path:
-    import ocrmypdf
+    # ocrmypdf is optional in some installs (it is an AUR package on Arch, and a
+    # separate pip install elsewhere), so report its absence the way every other
+    # missing dependency is reported rather than letting the ImportError escape.
+    try:
+        import ocrmypdf
+    except ImportError as error:
+        raise MissingDependency(
+            "ocrmypdf",
+            "paru -S ocrmypdf   (or: pip install ocrmypdf)",
+            "ocr",
+        ) from error
 
     deps.require("tesseract", "ocr")
     deps.require("gs", "ocr")

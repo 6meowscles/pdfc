@@ -39,6 +39,10 @@ rather than to `pdfc` itself, so they follow the positional arguments:
 | Office formats | libreoffice | `sudo pacman -S libreoffice-fresh` |
 | OCR | tesseract | `sudo pacman -S tesseract tesseract-data-eng` |
 | Compression, OCR | ghostscript | `sudo pacman -S ghostscript` |
+| OCR | ocrmypdf | `paru -S ocrmypdf` (AUR), or `pip install ocrmypdf` |
+
+The pip install pulls ocrmypdf in automatically; it is listed here because a
+distro package leaves it optional.
 
 ## Progress output
 
