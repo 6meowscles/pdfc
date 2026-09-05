@@ -47,17 +47,29 @@ pdfc ocr scan.pdf -o text.md --lang eng
 pdfc routes                              # print the conversion graph and dep status
 ```
 
-### Global flags
+### Per-command flags
 
-| Flag | Meaning |
-|---|---|
-| `--dry-run` | Print the planned route and output paths; write nothing. |
-| `-f, --force` | Overwrite existing outputs. Without it, an existing output is an error. |
-| `--progress {auto,bar,plain,none}` | Progress style; `auto` (default) picks `bar` on a TTY and `plain` otherwise. |
-| `-q, --quiet` | Equivalent to `--progress none`; errors still print to stderr. |
-| `-v, --verbose` | Print each step, the external commands invoked, per-step timings, and full tracebacks on failure. |
-| `--from FMT` | Override source format detection (required when input is `-`). |
-| `--to FMT` | Override target format detection. |
+These belong to each subcommand, not to `pdfc` itself, so they follow the
+positional arguments rather than preceding them:
+
+```
+pdfc notes.md notes.pdf --dry-run    # correct
+pdfc --dry-run notes.md notes.pdf    # error: No such option: --dry-run
+```
+
+That is a consequence of the inference-first dispatch: an unknown *first*
+argument is routed to `convert`, which only works when it is a path or a
+subcommand name, so the group itself carries no options beyond `--version`.
+
+| Flag | Meaning | Available on |
+|---|---|---|
+| `--dry-run` | Print the planned route and output paths; write nothing. | every command |
+| `-f, --force` | Overwrite existing outputs. Without it, an existing output is an error. | every command |
+| `--progress {auto,bar,plain,none}` | Progress style; `auto` (default) picks `bar` on a TTY and `plain` otherwise. | every command |
+| `-q, --quiet` | Equivalent to `--progress none`; errors still print to stderr. | every command |
+| `-v, --verbose` | Print each step, the external commands invoked, per-step timings, and full tracebacks on failure. | every command |
+| `--from FMT` | Override source format detection (required when input is `-`). | conversions |
+| `--to FMT` | Override target format detection. | conversions |
 
 ### Exit codes
 
@@ -202,8 +214,9 @@ error and reports it the same way rather than letting it escape.
 ### 3.7 Output paths (`planning.py`)
 
 - Single output, target is a file path → written exactly there.
-- Multiple outputs (page rendering, `split --each`) and target is a directory,
-  or a path ending in `/` → `<input-stem>-NNN.<ext>` inside it.
+- Multiple outputs (page rendering, `split --each`) and target is a directory —
+  an existing directory, or any path with no extension → `<input-stem>-NNN.<ext>`
+  inside it. (A trailing `/` cannot be the signal: `Path` normalises it away.)
 - Multiple outputs and target is a file path → `-NNN` inserted before the
   extension: `out/page.png` becomes `out/page-001.png`.
 - Zero padding is the width of the highest page number, minimum 3.
