@@ -26,7 +26,7 @@ def validate_language(language: str) -> None:
     if language not in available_languages():
         raise MissingDependency(
             f"tesseract language pack {language!r}",
-            f"sudo pacman -S tesseract-data-{language}",
+            deps.language_pack_hint(language),
             "ocr",
         )
 
@@ -42,7 +42,7 @@ def ocr_to_pdf(
     except ImportError as error:
         raise MissingDependency(
             "ocrmypdf",
-            "paru -S ocrmypdf   (or: pip install ocrmypdf)",
+            deps.install_hint("ocrmypdf"),
             "ocr",
         ) from error
 

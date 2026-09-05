@@ -48,15 +48,25 @@ rather than to `pdfc` itself, so they follow the positional arguments:
 
 ## Optional dependencies
 
-| Feature | Needs | Install |
-|---|---|---|
-| Office formats | libreoffice | `sudo pacman -S libreoffice-fresh` |
-| OCR | tesseract | `sudo pacman -S tesseract tesseract-data-eng` |
-| Compression, OCR | ghostscript | `sudo pacman -S ghostscript` |
-| OCR | ocrmypdf | `paru -S ocrmypdf` (AUR), or `pip install ocrmypdf` |
+| Feature | Needs |
+|---|---|
+| Office formats (docx, odt, pptx, xlsx) | libreoffice |
+| OCR | tesseract, ocrmypdf |
+| Compression, and the OCR text layer | ghostscript |
+| Any PDF output | pango and cairo, for weasyprint |
 
-The pip install pulls ocrmypdf in automatically; it is listed here because a
-distro package leaves it optional.
+You do not need to look these up. When a conversion needs something that is
+missing, `pdfc` names it and prints the command for *your* system — pacman,
+apt, dnf, zypper or brew, chosen from `/etc/os-release`:
+
+    $ pdfc report.docx report.pdf
+    error: converting docx → pdf needs libreoffice
+           install it with: sudo apt install libreoffice
+
+`pdfc routes` lists every conversion up front and marks which are blocked.
+
+The pip install pulls ocrmypdf in automatically; a distro package leaves it
+optional.
 
 ## Progress output
 

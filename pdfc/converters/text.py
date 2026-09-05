@@ -4,6 +4,7 @@ import statistics
 import markdown
 import pymupdf
 
+from pdfc import deps
 from pdfc.errors import MissingDependency
 from pdfc.formats import Format
 from pdfc.planning import Step, output_paths
@@ -150,7 +151,7 @@ def html_to_pdf(step: Step) -> None:
     except (ImportError, OSError) as error:
         raise MissingDependency(
             "weasyprint (needs pango and cairo)",
-            "sudo pacman -S pango cairo",
+            deps.install_hint("pango"),
             step.edge.label,
         ) from error
 
