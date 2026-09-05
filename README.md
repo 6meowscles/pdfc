@@ -63,4 +63,16 @@ error/exit-code contract.
 
 ## License
 
-MIT — see `LICENSE`.
+GNU AGPL-3.0-or-later — see `LICENSE`.
+
+This is not a preference so much as an inheritance: `pdfc` is built on
+[PyMuPDF](https://pymupdf.readthedocs.io/), which is dual-licensed AGPL-3.0 or
+commercial, and PyMuPDF does the real work here — rendering, text extraction,
+and the page operations. A work built on it and distributed has to carry the
+same terms, so a permissive license would be promising something these
+dependencies do not allow.
+
+The external tools `pdfc` shells out to — ghostscript, libreoffice, tesseract —
+run as separate processes and do not affect this. The rest of the Python stack
+is permissive: click and markdown (BSD), pillow (MIT-CMU), rich (MIT),
+ocrmypdf (MPL-2.0).
