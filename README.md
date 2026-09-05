@@ -4,11 +4,25 @@ A local PDF converter. Everything runs on this machine; nothing is uploaded.
 
 ## Install
 
+### Arch Linux
+
+    git clone https://github.com/6meowscles/pdfc
+    cd pdfc/packaging/aur && makepkg -si
+
+That builds a real package from the latest release and installs it with
+pacman, so `pdfc` lands in `/usr/bin` and its dependencies come from the
+official repositories. `makepkg` runs the test suite as part of the build.
+
+### Anywhere else
+
     ./install.sh
 
 That creates `.venv/`, installs the package, and links `~/.local/bin/pdfc`.
 If a dependency has no wheel for your Python, rerun with an older one:
 `PYTHON=python3.12 ./install.sh`.
+
+Note that this install stays tied to the checkout: deleting or rebuilding
+`.venv/` breaks the linked command. The Arch package has no such link.
 
 ## Use
 
