@@ -87,3 +87,25 @@ def test_detect_output_uses_extension_and_ignores_magic(tmp_path):
     assert formats.detect_output(tmp_path / "out.png", Format.JPEG) is Format.JPEG
     with pytest.raises(BadInput, match="cannot tell what format"):
         formats.detect_output(tmp_path / "out", None)
+
+
+def test_sniff_accepts_a_riff_container_only_when_it_is_a_webp(tmp_path):
+    webp = tmp_path / "image.webp"
+    webp.write_bytes(b"RIFF" + b"\x24\x00\x00\x00" + b"WEBPVP8 " + b"\x00" * 16)
+    assert formats.sniff(webp) is Format.WEBP
+
+
+def test_sniff_does_not_claim_a_non_webp_riff_file(tmp_path):
+    # WAV and AVI open with the same RIFF header; only the form type at bytes
+    # 8-12 says which container it is.
+    wav = tmp_path / "audio.wav"
+    wav.write_bytes(b"RIFF" + b"\x24\x00\x00\x00" + b"WAVEfmt " + b"\x00" * 16)
+    assert formats.sniff(wav) is None
+
+
+def test_a_wav_named_with_a_webp_extension_still_falls_back_to_the_extension(tmp_path):
+    # Sniffing outranks the extension, so a wrong RIFF guess would have won.
+    path = tmp_path / "mislabelled.wav"
+    path.write_bytes(b"RIFF" + b"\x24\x00\x00\x00" + b"AVI LIST" + b"\x00" * 16)
+    with pytest.raises(BadInput, match="cannot tell what format"):
+        formats.detect_input(path, None)

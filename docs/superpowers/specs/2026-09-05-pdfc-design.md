@@ -47,17 +47,29 @@ pdfc ocr scan.pdf -o text.md --lang eng
 pdfc routes                              # print the conversion graph and dep status
 ```
 
-### Global flags
+### Per-command flags
 
-| Flag | Meaning |
-|---|---|
-| `--dry-run` | Print the planned route and output paths; write nothing. |
-| `-f, --force` | Overwrite existing outputs. Without it, an existing output is an error. |
-| `--progress {auto,bar,plain,none}` | Progress style; `auto` (default) picks `bar` on a TTY and `plain` otherwise. |
-| `-q, --quiet` | Equivalent to `--progress none`; errors still print to stderr. |
-| `-v, --verbose` | Print each step, the external commands invoked, per-step timings, and full tracebacks on failure. |
-| `--from FMT` | Override source format detection (required when input is `-`). |
-| `--to FMT` | Override target format detection. |
+These belong to each subcommand, not to `pdfc` itself, so they follow the
+positional arguments rather than preceding them:
+
+```
+pdfc notes.md notes.pdf --dry-run    # correct
+pdfc --dry-run notes.md notes.pdf    # error: No such option: --dry-run
+```
+
+That is a consequence of the inference-first dispatch: an unknown *first*
+argument is routed to `convert`, which only works when it is a path or a
+subcommand name, so the group itself carries no options beyond `--version`.
+
+| Flag | Meaning | Available on |
+|---|---|---|
+| `--dry-run` | Print the planned route and output paths; write nothing. | every command |
+| `-f, --force` | Overwrite existing outputs. Without it, an existing output is an error. | every command |
+| `--progress {auto,bar,plain,none}` | Progress style; `auto` (default) picks `bar` on a TTY and `plain` otherwise. | every command |
+| `-q, --quiet` | Equivalent to `--progress none`; errors still print to stderr. | every command |
+| `-v, --verbose` | Print each step, the external commands invoked, per-step timings, and full tracebacks on failure. | every command |
+| `--from FMT` | Override source format detection (required when input is `-`). | conversions |
+| `--to FMT` | Override target format detection. | conversions |
 
 ### Exit codes
 

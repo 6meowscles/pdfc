@@ -25,7 +25,12 @@ If a dependency has no wheel for your Python, rerun with an older one:
     pdfc ocr scan.pdf -o searchable.pdf
 
 `pdfc routes` lists every conversion and whether its dependencies are installed.
-`--dry-run` prints the plan without writing anything.
+
+`--dry-run`, `-f/--force`, `--progress`, `-q` and `-v` belong to each command
+rather than to `pdfc` itself, so they follow the positional arguments:
+
+    pdfc notes.md notes.pdf --dry-run     # prints the route and the output paths
+    pdfc split big.pdf --each -o pages/ -f
 
 ## Optional dependencies
 

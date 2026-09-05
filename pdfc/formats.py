@@ -71,7 +71,7 @@ def from_extension(path: Path) -> Format | None:
 def sniff(path: Path) -> Format | None:
     try:
         with path.open("rb") as handle:
-            head = handle.read(8)
+            head = handle.read(12)
     except OSError:
         return None
     if head.startswith(b"%PDF"):
@@ -80,7 +80,9 @@ def sniff(path: Path) -> Format | None:
         return Format.PNG
     if head.startswith(b"\xff\xd8\xff"):
         return Format.JPEG
-    if head.startswith(b"RIFF"):
+    # RIFF is a container: WAV and AVI share the header, so the form type
+    # at bytes 8-12 is what actually identifies a WEBP.
+    if head.startswith(b"RIFF") and head[8:12] == b"WEBP":
         return Format.WEBP
     if head.startswith(b"II*\x00") or head.startswith(b"MM\x00*"):
         return Format.TIFF

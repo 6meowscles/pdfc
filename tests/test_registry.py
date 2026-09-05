@@ -97,3 +97,36 @@ def test_reachable_reports_everything_within_the_hop_cap(registry):
 def test_identity_route_is_rejected(registry):
     with pytest.raises(NoRoute):
         registry.route(Format.PDF, Format.PDF, always)
+
+
+def test_a_two_hop_path_is_blocked_by_its_first_edge(registry):
+    registry.register(
+        Format.DOCX, Format.PDF, noop, ("libreoffice",), 1, ("converting", "converted")
+    )
+    registry.register(Format.PDF, Format.PNG, noop, (), 1, ("rendering", "rendered"))
+    with pytest.raises(MissingDependency) as caught:
+        registry.route(Format.DOCX, Format.PNG, lambda binary: binary != "libreoffice")
+    assert caught.value.binary == "libreoffice"
+
+
+def test_a_two_hop_path_is_blocked_by_its_second_edge(registry):
+    registry.register(Format.DOCX, Format.PDF, noop, (), 1, ("converting", "converted"))
+    registry.register(Format.PDF, Format.PNG, noop, ("magick",), 1, ("rendering", "rendered"))
+    with pytest.raises(MissingDependency) as caught:
+        registry.route(Format.DOCX, Format.PNG, lambda binary: binary != "magick")
+    assert caught.value.binary == "magick"
+
+
+def test_an_available_two_hop_path_beats_a_blocked_one(registry):
+    # Two routes of equal length: docx -> odt -> png needs a missing binary on
+    # its second edge, docx -> pdf -> png needs nothing.
+    registry.register(Format.DOCX, Format.ODT, noop, (), 1, ("converting", "converted"))
+    blocked = registry.register(
+        Format.ODT, Format.PNG, noop, ("magick",), 1, ("rendering", "rendered")
+    )
+    registry.register(Format.DOCX, Format.PDF, noop, (), 5, ("converting", "converted"))
+    free = registry.register(Format.PDF, Format.PNG, noop, (), 5, ("rendering", "rendered"))
+    route = registry.route(Format.DOCX, Format.PNG, lambda binary: binary != "magick")
+    assert route[-1] == free
+    assert blocked not in route
+    assert [edge.target for edge in route] == [Format.PDF, Format.PNG]
