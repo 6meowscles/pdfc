@@ -60,3 +60,7 @@ error/exit-code contract.
 ## Tests
 
     .venv/bin/pytest
+
+## License
+
+MIT — see `LICENSE`.
