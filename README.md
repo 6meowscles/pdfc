@@ -4,6 +4,13 @@ A local PDF converter. Everything runs on this machine; nothing is uploaded.
 
 ## Install
 
+### pip
+
+    pip install localpdf
+
+The distribution is called `localpdf` because PyPI already has a project too
+close to `pdfc`; the command it installs is still `pdfc`.
+
 ### Arch Linux
 
     git clone https://github.com/6meowscles/pdfc

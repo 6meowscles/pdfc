@@ -1,7 +1,8 @@
 [project]
-name = "pdfc"
+name = "localpdf"
 dynamic = ["version"]
 description = "Local PDF converter CLI"
+authors = [{name = "6meowscles"}]
 readme = "README.md"
 requires-python = ">=3.11"
 license = "AGPL-3.0-or-later"
@@ -21,6 +22,11 @@ dev = ["pytest"]
 
 [project.scripts]
 pdfc = "pdfc.cli:_entry"
+
+[project.urls]
+Homepage = "https://github.com/6meowscles/pdfc"
+Repository = "https://github.com/6meowscles/pdfc"
+Issues = "https://github.com/6meowscles/pdfc/issues"
 
 # Single-source the version from the package, so a release tag and the
 # metadata cannot drift apart.
