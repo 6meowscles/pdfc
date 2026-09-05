@@ -2,6 +2,7 @@
 name = "pdfc"
 dynamic = ["version"]
 description = "Local PDF converter CLI"
+readme = "README.md"
 requires-python = ">=3.11"
 license = "AGPL-3.0-or-later"
 license-files = ["LICENSE"]
