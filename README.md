@@ -11,6 +11,13 @@ A local PDF converter. Everything runs on this machine; nothing is uploaded.
 The distribution is called `localpdf` because PyPI already has a project too
 close to `pdfc`; the command it installs is still `pdfc`.
 
+### Homebrew
+
+    brew install 6meowscles/tap/pdfc
+
+macOS or Linux. The formula builds a virtualenv of its own, and pulls in cairo
+and pango because weasyprint loads them at import time.
+
 ### Arch Linux
 
     git clone https://github.com/6meowscles/pdfc
@@ -19,6 +26,20 @@ close to `pdfc`; the command it installs is still `pdfc`.
 That builds a real package from the latest release and installs it with
 pacman, so `pdfc` lands in `/usr/bin` and its dependencies come from the
 official repositories. `makepkg` runs the test suite as part of the build.
+
+`pdfc` is not on the AUR; the PKGBUILD lives here, so it is built from the
+checkout rather than fetched by an AUR helper.
+
+### Fedora
+
+There is no COPR repository yet, so build the RPM from the spec in this
+repository:
+
+    sudo dnf install rpm-build rpmdevtools python3-devel pyproject-rpm-macros
+    rpmdev-setuptree
+    spectool -g -R packaging/copr/pdfc.spec
+    rpmbuild -ba packaging/copr/pdfc.spec
+    sudo dnf install ~/rpmbuild/RPMS/noarch/pdfc-*.noarch.rpm
 
 ### Anywhere else
 
