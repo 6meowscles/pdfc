@@ -198,6 +198,19 @@ def test_compress_accepts_a_ghostscript_output_with_the_same_page_count(tmp_path
     assert page_count(out) == 4
 
 
+def test_compress_rejects_a_damaged_source_pdf(tmp_path):
+    """A file can pass the %PDF header check yet still be unreadable by
+    pymupdf; the page-count lookup on the compress path must not let that
+    raise straight through as an untyped failure."""
+    source = tmp_path / "damaged.pdf"
+    source.write_bytes(b"%PDF-1.4\ngarbage, no xref table here" * 5)
+    out = tmp_path / "small.pdf"
+
+    with pytest.raises(BadInput, match="damaged.pdf"):
+        pdfops.compress(source, out, quality="ebook", reporter=NullReporter(), force=False)
+    assert not out.exists()
+
+
 def test_compress_reports_a_ghostscript_failure_with_its_own_message(tmp_path, monkeypatch):
     source = pdf_with(tmp_path / "in.pdf", 2)
 

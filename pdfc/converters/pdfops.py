@@ -24,8 +24,11 @@ def _require_pdf(path: Path) -> None:
 
 
 def _page_count(path: Path) -> int:
-    with pymupdf.open(path) as doc:
-        return doc.page_count
+    try:
+        with pymupdf.open(path) as doc:
+            return doc.page_count
+    except Exception as error:
+        raise BadInput(f"cannot read {path}: {error}") from error
 
 
 def _validate_gs_output(staged: Path, expected_pages: int) -> None:
