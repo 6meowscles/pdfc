@@ -1,6 +1,6 @@
 [project]
 name = "pdfc"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Local PDF converter CLI"
 requires-python = ">=3.11"
 license = "AGPL-3.0-or-later"
@@ -20,6 +20,17 @@ dev = ["pytest"]
 
 [project.scripts]
 pdfc = "pdfc.cli:_entry"
+
+# Single-source the version from the package, so a release tag and the
+# metadata cannot drift apart.
+[tool.setuptools.dynamic]
+version = {attr = "pdfc.__version__"}
+
+# Say which packages ship rather than letting setuptools guess: the
+# repository has a second top-level directory (packaging/) that is not a
+# Python package, and flat-layout auto-discovery refuses to choose.
+[tool.setuptools.packages.find]
+include = ["pdfc*"]
 
 [build-system]
 requires = ["setuptools>=68"]
