@@ -59,6 +59,11 @@ class Reporter:
     def _line(self, verb: str, rest: str) -> str:
         return f"{verb.ljust(self.verb_width)}  {self.label}  {rest}".rstrip()
 
+    def _done_line(self, summary: str) -> str:
+        # An internal step reports no destination, so skip the gap it would leave.
+        rest = "  ".join(part for part in (summary, self._elapsed()) if part)
+        return self._line(self.verbs[1], rest)
+
 
 class NullReporter(Reporter):
     pass
@@ -72,7 +77,7 @@ class PlainReporter(Reporter):
         self.stream.flush()
 
     def finish(self, summary: str) -> None:
-        self.stream.write(self._line(self.verbs[1], f"{summary}  {self._elapsed()}") + "\n")
+        self.stream.write(self._done_line(summary) + "\n")
         self.stream.flush()
 
 
@@ -116,7 +121,7 @@ class BarReporter(Reporter):
             self._progress.stop()
             self._progress = None
             self._task = None
-        self.stream.write(self._line(self.verbs[1], f"{summary}  {self._elapsed()}") + "\n")
+        self.stream.write(self._done_line(summary) + "\n")
         self.stream.flush()
 
     def warn(self, message: str) -> None:

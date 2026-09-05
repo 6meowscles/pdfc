@@ -100,3 +100,19 @@ def test_nothing_ever_reaches_stdout(capsys):
     reporter.warn("careful")
     captured = capsys.readouterr()
     assert captured.out == ""
+
+
+def test_a_step_with_no_destination_leaves_no_gap_in_the_line():
+    """Intermediate steps report no destination, so the completion line must
+    not carry the double gap the missing summary would otherwise leave."""
+    import io
+
+    from pdfc.progress import PlainReporter
+
+    stream = io.StringIO()
+    reporter = PlainReporter(stream, 9)
+    reporter.start(("converting", "converted"), "md → html", 1)
+    reporter.finish("")
+    line = stream.getvalue().splitlines()[-1]
+    assert line.startswith("converted  md → html  ")
+    assert "  " not in line[len("converted  md → html  "):]
