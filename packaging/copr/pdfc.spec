@@ -1,5 +1,5 @@
 Name:           pdfc
-Version:        0.2.0
+Version:        0.2.1
 Release:        1%{?dist}
 Summary:        Local PDF converter: images, text, markdown, HTML and office formats
 
@@ -74,6 +74,8 @@ install -Dpm 0644 docs/design.md %{buildroot}%{_docdir}/%{name}/design.md
 %{_bindir}/pdfc
 
 %changelog
+* Sat Sep 05 2026 6meowscles <mharshita2309@gmail.com> - 0.2.1-1
+- README is now the package description
 * Sat Sep 05 2026 6meowscles <mharshita2309@gmail.com> - 0.2.0-1
 - Install hints now match the running system rather than assuming Arch
 * Sat Sep 05 2026 6meowscles <mharshita2309@gmail.com> - 0.1.3-1
