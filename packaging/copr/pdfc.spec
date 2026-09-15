@@ -1,5 +1,5 @@
 Name:           pdfc
-Version:        0.3.0
+Version:        0.3.1
 Release:        1%{?dist}
 Summary:        Local PDF converter: images, text, markdown, HTML and office formats
 
@@ -74,6 +74,11 @@ install -Dpm 0644 docs/design.md %{buildroot}%{_docdir}/%{name}/design.md
 %{_bindir}/pdfc
 
 %changelog
+* Tue Sep 15 2026 6meowscles <mharshita2309@gmail.com> - 0.3.1-1
+- Name an unrecognised command instead of reporting a missing file
+- Drop the pdf to docx route LibreOffice could never perform
+- Convert html and markdown to docx and odt
+
 * Tue Sep 15 2026 6meowscles <mharshita2309@gmail.com> - 0.3.0-1
 - Add the info command
 - Accept a %PDF header that is not at offset 0
