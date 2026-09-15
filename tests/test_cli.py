@@ -130,3 +130,48 @@ def test_a_stdout_run_does_not_print_its_scratch_path(sample_pdf):
     assert result.exit_code == 0
     assert "pdfc-" not in result.stderr
     assert "stdout.txt" not in result.stderr
+
+
+def test_a_bare_unknown_word_is_reported_as_a_command_not_a_file():
+    # The exit code belongs to the subprocess suite: CliRunner never runs
+    # _entry, so it reports click's standalone 2 rather than the real 1.
+    result = run(["frobnicate", "x.pdf"])
+    assert result.exit_code != 0
+    assert "is not a command" in result.stderr
+    # The old behaviour blamed the file, which pointed at the wrong problem.
+    assert "cannot read frobnicate" not in result.stderr
+
+
+def test_a_mistyped_command_suggests_the_real_one():
+    result = run(["merg", "a.pdf", "b.pdf"])
+    assert result.exit_code != 0
+    assert "did you mean" in result.stderr
+    assert "merge" in result.stderr
+
+
+def test_the_command_list_is_shown():
+    result = run(["frobnicate"])
+    assert "commands:" in result.stderr
+    for name in ("convert", "merge", "split", "info"):
+        assert name in result.stderr
+
+
+def test_a_missing_file_with_an_extension_is_still_a_file_error(tmp_path):
+    result = run(["nosuch.md", str(tmp_path / "out.pdf")])
+    assert result.exit_code != 0
+    assert "cannot read nosuch.md" in result.stderr
+    assert "is not a command" not in result.stderr
+
+
+def test_an_existing_extensionless_file_still_converts(tmp_path, sample_md):
+    # No suffix, but it is on disk, so it must still route to convert.
+    extensionless = tmp_path / "readme"
+    extensionless.write_text(sample_md.read_text())
+    result = run([str(extensionless), str(tmp_path / "out.pdf"), "--from", "md", "--dry-run"])
+    assert "is not a command" not in result.stderr
+
+
+def test_a_leading_dash_argument_is_not_treated_as_a_command():
+    result = run(["--nonsense"])
+    assert result.exit_code != 0
+    assert "is not a command" not in result.stderr

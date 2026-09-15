@@ -96,3 +96,10 @@ def test_extensionless_target_that_is_a_file_is_a_typed_error(tmp_path):
     assert "exists and is not a directory" in result.stderr
     assert "traceback" not in result.stderr.lower()
     assert blocker.read_text() == "all:\n"
+
+
+def test_unknown_command_exits_1_from_the_real_entry_point():
+    result = run(["frobnicate", "x.pdf"])
+    assert result.returncode == 1
+    assert "is not a command" in result.stderr
+    assert "cannot read frobnicate" not in result.stderr
