@@ -1,3 +1,4 @@
+import difflib
 import sys
 import tempfile
 from pathlib import Path
@@ -17,9 +18,21 @@ class PdfcGroup(click.Group):
         try:
             return super().resolve_command(ctx, args)
         except click.UsageError:
-            if args and (args[0] == "-" or not args[0].startswith("-")):
+            if not args:
+                raise
+            candidate = args[0]
+            if candidate == "-" or _looks_like_a_path(candidate):
                 return "convert", self.get_command(ctx, "convert"), args
-            raise
+            raise click.UsageError(self._unknown_command(ctx, candidate)) from None
+
+    def _unknown_command(self, ctx, candidate: str) -> str:
+        known = sorted(self.list_commands(ctx))
+        lines = [f"{candidate!r} is not a command, and no file named {candidate!r} exists"]
+        close = difflib.get_close_matches(candidate, known, n=3)
+        if close:
+            lines.append("did you mean: " + ", ".join(close) + "?")
+        lines.append("commands: " + ", ".join(known))
+        return "\n       ".join(lines)
 
     def invoke(self, ctx):
         try:
@@ -27,6 +40,22 @@ class PdfcGroup(click.Group):
         except PdfcError as error:
             click.echo(f"error: {error}", err=True)
             ctx.exit(error.exit_code)
+
+
+def _looks_like_a_path(candidate: str) -> bool:
+    """Whether an unrecognised first argument is plausibly a conversion source.
+
+    Anything on disk qualifies, as does anything shaped like a filename. A bare
+    word that names nothing is far more likely a mistyped command, or one from
+    a newer version than the copy actually being run -- a common trap, because
+    `python3 -m pdfc.cli` silently picks up an older installed package from
+    outside the source tree. Routing that to `convert` reported it as a missing
+    file, which points at the wrong problem entirely.
+    """
+    if candidate.startswith("-"):
+        return False
+    path = Path(candidate)
+    return path.exists() or "/" in candidate or path.suffix != ""
 
 
 def _format_option(value: str | None) -> Format | None:

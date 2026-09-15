@@ -5,27 +5,40 @@
 `pyproject.toml` actually wires up as the `pdfc` console script. Task 9
 shipped a version of `_entry` that exited 0 for every error while the whole
 suite still passed, because nothing ran the real entry point. These tests
-close that gap by running the installed script (or the module, as a
-fallback) as a subprocess and asserting on its actual process exit code.
+close that gap by running this checkout as a subprocess and asserting on its
+actual process exit code.
 """
 
+import os
 import subprocess
 import sys
 from pathlib import Path
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
 
 def _pdfc_command() -> list[str]:
-    """The real console-script entry point, `pdfc.cli:_entry`, invoked as a subprocess."""
-    script = Path(sys.executable).with_name("pdfc")
-    if script.exists():
-        return [str(script)]
-    # Fallback for environments where the console script isn't alongside
-    # this interpreter: `python -m pdfc.cli` runs the same `_entry()`.
+    """The real entry point, `pdfc.cli:_entry`, invoked as a subprocess.
+
+    This used to prefer an installed `pdfc` console script and fall back to the
+    module. That tested whichever version happened to be installed system-wide
+    rather than the tree under test -- a stale install kept every assertion in
+    this file passing while the source it was meant to guard had moved on.
+    `python -m pdfc.cli` runs the same `_entry()`, and pinning PYTHONPATH to
+    this checkout leaves no doubt about which copy is being exercised.
+    """
     return [sys.executable, "-m", "pdfc.cli"]
 
 
 def run(args, **kwargs):
-    return subprocess.run([*_pdfc_command(), *args], capture_output=True, text=True, **kwargs)
+    environment = {**kwargs.pop("env", os.environ), "PYTHONPATH": str(PROJECT_ROOT)}
+    return subprocess.run(
+        [*_pdfc_command(), *args],
+        capture_output=True,
+        text=True,
+        env=environment,
+        **kwargs,
+    )
 
 
 def test_no_route_exits_2_on_the_real_entry_point(tmp_path):
@@ -58,8 +71,6 @@ def test_non_ascii_text_survives_an_ascii_locale(tmp_path):
     platform default encoding. Run the real entry point under the C locale,
     where that default is ANSI_X3.4-1968, and check the bytes match the
     declaration instead of blowing up on the first accented character."""
-    import os
-
     source = tmp_path / "resume.md"
     source.write_text("# Résumé\n\nCafé — naïve façade.\n", encoding="utf-8")
     target = tmp_path / "out.html"
@@ -85,3 +96,10 @@ def test_extensionless_target_that_is_a_file_is_a_typed_error(tmp_path):
     assert "exists and is not a directory" in result.stderr
     assert "traceback" not in result.stderr.lower()
     assert blocker.read_text() == "all:\n"
+
+
+def test_unknown_command_exits_1_from_the_real_entry_point():
+    result = run(["frobnicate", "x.pdf"])
+    assert result.returncode == 1
+    assert "is not a command" in result.stderr
+    assert "cannot read frobnicate" not in result.stderr
