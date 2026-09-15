@@ -31,7 +31,7 @@ optdepends=(
   'ocrmypdf: OCR scanned PDFs (AUR)'
 )
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('PLACEHOLDER_REGENERATE_AFTER_TAGGING')
+sha256sums=('60921df95ce56a23e261cf461ec9c84fcb1a1bb1f3b783f935863419a718a145')
 
 build() {
   cd "$pkgname-$pkgver"
