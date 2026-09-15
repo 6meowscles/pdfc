@@ -252,6 +252,20 @@ def ocr(source, output, lang, force_ocr, dry_run, force, progress_mode, quiet, v
     ocr_module.run_ocr(source, output, lang, force_ocr, reporter, force)
 
 
+
+@main.command("info")
+@click.argument("source", type=click.Path(path_type=Path))
+def info_command(source: Path) -> None:
+    """Report page count, size and page dimensions for a PDF."""
+    facts = pdfops.info(source)
+    sizes = ", ".join(f"{width}x{height}pt" for width, height in facts["page_sizes"])
+    click.echo(f"path      {facts['path']}")
+    click.echo(f"pages     {facts['pages']}")
+    click.echo(f"size      {progress.human_size(facts['bytes'])}")
+    click.echo(f"encrypted {'yes' if facts['encrypted'] else 'no'}")
+    click.echo(f"pagesize  {sizes}")
+
+
 def _entry() -> int:
     try:
         return main.main(standalone_mode=False) or 0

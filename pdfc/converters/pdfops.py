@@ -51,6 +51,30 @@ def _validate_gs_output(staged: Path, expected_pages: int) -> None:
         )
 
 
+
+def info(source: Path) -> dict[str, object]:
+    """Collect the facts about a PDF that a reader usually wants before
+    operating on it: how many pages, how large, and how big those pages are."""
+    _require_pdf(source)
+    try:
+        with pymupdf.open(source) as doc:
+            sizes = {
+                (round(page.rect.width), round(page.rect.height))
+                for page in doc
+            }
+            return {
+                "path": source,
+                "pages": doc.page_count,
+                "bytes": source.stat().st_size,
+                "encrypted": doc.is_encrypted,
+                "page_sizes": sorted(sizes),
+            }
+    except BadInput:
+        raise
+    except Exception as error:
+        raise BadInput(f"cannot read {source}: {error}") from error
+
+
 def merge(sources: list[Path], target: Path, reporter: Reporter, force: bool) -> list[Path]:
     for source in sources:
         _require_pdf(source)

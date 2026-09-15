@@ -267,3 +267,27 @@ def test_every_pdf_operation_writes_through_the_staging_helper(tmp_path, monkeyp
     pdfops.rotate(source, tmp_path / "r.pdf", 90, None, NullReporter(), force=False)
     pdfops.extract_pages(source, tmp_path / "p.pdf", "2", NullReporter(), force=False)
     assert [path.name for path in calls] == ["m.pdf", "s.pdf", "r.pdf", "p.pdf"]
+
+
+def test_info_reports_page_count_and_size(tmp_path):
+    source = pdf_with(tmp_path / "three.pdf", 3)
+    facts = pdfops.info(source)
+    assert facts["pages"] == 3
+    assert facts["bytes"] == source.stat().st_size
+    assert facts["encrypted"] is False
+    assert len(facts["page_sizes"]) == 1
+
+
+def test_info_rejects_a_non_pdf(tmp_path):
+    source = tmp_path / "notes.txt"
+    source.write_text("this is not a PDF")
+    with pytest.raises(BadInput):
+        pdfops.info(source)
+
+
+def test_info_command_prints_a_summary(tmp_path):
+    source = pdf_with(tmp_path / "three.pdf", 3)
+    result = CliRunner().invoke(main, ["info", str(source)])
+    assert result.exit_code == 0
+    assert "pages     3" in result.output
+    assert "encrypted no" in result.output

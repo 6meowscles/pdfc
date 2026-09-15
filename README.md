@@ -66,6 +66,7 @@ Note that this install stays tied to the checkout: deleting or rebuilding
     pdfc rotate scan.pdf --angle 90 -o fixed.pdf
     pdfc compress big.pdf --quality ebook -o small.pdf
     pdfc ocr scan.pdf -o searchable.pdf
+    pdfc info report.pdf                   # page count, size, page dimensions
 
 `pdfc routes` lists every conversion and whether its dependencies are installed.
 
