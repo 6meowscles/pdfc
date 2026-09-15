@@ -1,6 +1,8 @@
 import pytest
+from click.testing import CliRunner
 
 from pdfc import deps
+from pdfc.cli import main
 from pdfc.errors import MissingDependency
 from pdfc.formats import Format
 from pdfc.planning import build_plan, execute
@@ -19,7 +21,36 @@ def test_office_edges_are_registered():
     sources = {(e.source, e.target) for e in REGISTRY.edges()}
     for fmt in (Format.DOCX, Format.ODT, Format.PPTX, Format.XLSX):
         assert (fmt, Format.PDF) in sources
-    assert (Format.PDF, Format.DOCX) in sources
+    # Writer formats are produced from html, not from pdf.
+    assert (Format.HTML, Format.DOCX) in sources
+    assert (Format.HTML, Format.ODT) in sources
+
+
+def test_pdf_to_docx_is_not_advertised():
+    """LibreOffice loads a PDF into Draw, which has no Writer export filter, so
+    this edge could never succeed. It used to be registered and reported as
+    available, and failed every time it was actually attempted."""
+    sources = {(e.source, e.target) for e in REGISTRY.edges()}
+    assert (Format.PDF, Format.DOCX) not in sources
+
+
+def test_pdf_to_docx_reports_no_route_rather_than_a_libreoffice_error(tmp_path, sample_pdf):
+    from click.testing import CliRunner
+
+    from pdfc.cli import main
+
+    result = CliRunner().invoke(main, [str(sample_pdf), str(tmp_path / "out.docx")])
+    assert result.exit_code == 2
+    assert "no route from pdf to docx" in result.output + str(result.exception or "")
+
+
+def test_html_to_docx_names_the_writer_import_filter():
+    """Without --infilter, LibreOffice opens .html in Writer/Web, which cannot
+    export docx: the run exits 0 and writes nothing at all."""
+    from pdfc.converters import office
+
+    assert office.HTML_IN_WRITER == "HTML (StarWriter)"
+    assert office.WRITER_EXPORT["docx"] == "MS Word 2007 XML"
 
 
 def test_office_edges_declare_libreoffice():
@@ -70,3 +101,29 @@ def test_docx_to_pdf_produces_a_pdf(tmp_path):
     plan = build_plan(route, source, tmp_path / "out.pdf", {}, NullReporter(), tmp_path)
     outputs = execute(plan)
     assert outputs[0].read_bytes().startswith(b"%PDF")
+
+
+def test_md_to_docx_routes_through_html():
+    """pdf -> docx is gone, but Writer formats stay reachable from markdown:
+    md -> html -> docx is two hops, which is the routing limit."""
+    route = REGISTRY.route(Format.MD, Format.DOCX, lambda _b: True)
+    assert [e.target for e in route] == [Format.HTML, Format.DOCX]
+
+
+@pytest.mark.needs_libreoffice
+@pytest.mark.skipif(not has_libreoffice, reason="libreoffice not installed")
+def test_md_to_docx_produces_a_readable_word_file(tmp_path):
+    import zipfile
+
+    source = tmp_path / "notes.md"
+    source.write_text("# Heading\n\nA paragraph that must survive the round trip.\n")
+    target = tmp_path / "notes.docx"
+
+    runner = CliRunner()
+    result = runner.invoke(main, [str(source), str(target)])
+    assert result.exit_code == 0, result.output
+
+    assert target.exists()
+    with zipfile.ZipFile(target) as archive:
+        body = archive.read("word/document.xml").decode("utf-8", "replace")
+    assert "must survive the round trip" in body

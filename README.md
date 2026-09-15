@@ -58,6 +58,7 @@ Note that this install stays tied to the checkout: deleting or rebuilding
     pdfc scan.pdf out/page.png --dpi 300   # render pages to images
     pdfc notes.md notes.pdf                # markdown to PDF, via HTML
     pdfc report.docx report.pdf            # needs libreoffice
+    pdfc notes.md notes.docx               # via html; needs libreoffice
     pdfc scan.pdf notes.txt                # extract text
 
     pdfc merge a.pdf b.pdf -o all.pdf
@@ -82,6 +83,7 @@ rather than to `pdfc` itself, so they follow the positional arguments:
 | Feature | Needs |
 |---|---|
 | Office formats (docx, odt, pptx, xlsx) | libreoffice |
+| Writing docx or odt (from html or markdown) | libreoffice |
 | OCR | tesseract, ocrmypdf |
 | Compression, and the OCR text layer | ghostscript |
 | Any PDF output | pango and cairo, for weasyprint |
@@ -102,6 +104,19 @@ drags the whole tesseract stack behind it. Add it deliberately:
     pip install localpdf[ocr]
 
 or install your distribution's own `ocrmypdf` package.
+
+### PDF to Word
+
+There is no `pdf → docx` route, and this is deliberate. LibreOffice loads a PDF
+into Draw, which has no Writer export filter, so the conversion cannot succeed —
+it fails with `Error: no export filter`, or exits 0 having written nothing.
+`pdfc` used to advertise the route as available and fail every time it was
+tried; it now reports `no route from pdf to docx` up front.
+
+Writer formats are produced from HTML instead, so `md → html → docx` works
+within the two-hop routing limit. If you have the original markdown or HTML,
+convert from that — the result keeps its headings and paragraphs, which a
+PDF-to-Word conversion would have flattened even if one were possible.
 
 ## Progress output
 
