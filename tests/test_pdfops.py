@@ -283,3 +283,11 @@ def test_info_rejects_a_non_pdf(tmp_path):
     source.write_text("this is not a PDF")
     with pytest.raises(BadInput):
         pdfops.info(source)
+
+
+def test_info_command_prints_a_summary(tmp_path):
+    source = pdf_with(tmp_path / "three.pdf", 3)
+    result = CliRunner().invoke(main, ["info", str(source)])
+    assert result.exit_code == 0
+    assert "pages     3" in result.output
+    assert "encrypted no" in result.output
