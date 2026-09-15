@@ -14,12 +14,18 @@ QUALITIES = ("screen", "ebook", "printer", "prepress")
 ANGLES = (90, 180, 270, -90)
 
 
+# Readers accept the %PDF header anywhere in the first kilobyte, and some
+# producers emit a blank line or a byte-order mark ahead of it. Insisting on
+# offset 0 rejected files that pymupdf opens without complaint.
+HEADER_SEARCH_WINDOW = 1024
+
+
 def _require_pdf(path: Path) -> None:
     if not path.exists():
         raise BadInput(f"cannot read {path}")
     with path.open("rb") as handle:
-        header = handle.read(4)
-    if header != b"%PDF":
+        prefix = handle.read(HEADER_SEARCH_WINDOW)
+    if b"%PDF" not in prefix:
         raise BadInput(f"{path} is not a PDF")
 
 

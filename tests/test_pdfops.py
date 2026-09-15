@@ -291,3 +291,25 @@ def test_info_command_prints_a_summary(tmp_path):
     assert result.exit_code == 0
     assert "pages     3" in result.output
     assert "encrypted no" in result.output
+
+def test_require_pdf_accepts_a_header_that_is_not_at_offset_zero(tmp_path):
+    source = pdf_with(tmp_path / "clean.pdf", 2)
+    shifted = tmp_path / "shifted.pdf"
+    # A blank line ahead of %PDF, as some producers emit.
+    shifted.write_bytes(b"\n\n" + source.read_bytes())
+    pdfops._require_pdf(shifted)
+    assert pdfops._page_count(shifted) == 2
+
+
+def test_require_pdf_still_rejects_a_file_with_no_header(tmp_path):
+    source = tmp_path / "notes.txt"
+    source.write_text("no header anywhere in this file")
+    with pytest.raises(BadInput, match="is not a PDF"):
+        pdfops._require_pdf(source)
+
+
+def test_require_pdf_ignores_a_header_beyond_the_search_window(tmp_path):
+    source = tmp_path / "late.pdf"
+    source.write_bytes(b"x" * (pdfops.HEADER_SEARCH_WINDOW + 8) + b"%PDF-1.7")
+    with pytest.raises(BadInput, match="is not a PDF"):
+        pdfops._require_pdf(source)
