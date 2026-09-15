@@ -4,7 +4,7 @@ class Pdfc < Formula
   desc "Local PDF converter: images, text, markdown, HTML and office formats"
   homepage "https://github.com/6meowscles/pdfc"
   url "https://github.com/6meowscles/pdfc/archive/refs/tags/v0.3.0.tar.gz"
-  sha256 "PLACEHOLDER_REGENERATE_AFTER_TAGGING"
+  sha256 "7fc9f9e254aeb199de95a1084ab4c9024a9bd5efc110f9ba80495da07b0f5ea4"
   license "AGPL-3.0-or-later"
   head "https://github.com/6meowscles/pdfc.git", branch: "main"
 
