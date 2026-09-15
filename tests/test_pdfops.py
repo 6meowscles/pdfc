@@ -267,3 +267,26 @@ def test_every_pdf_operation_writes_through_the_staging_helper(tmp_path, monkeyp
     pdfops.rotate(source, tmp_path / "r.pdf", 90, None, NullReporter(), force=False)
     pdfops.extract_pages(source, tmp_path / "p.pdf", "2", NullReporter(), force=False)
     assert [path.name for path in calls] == ["m.pdf", "s.pdf", "r.pdf", "p.pdf"]
+
+
+def test_require_pdf_accepts_a_header_that_is_not_at_offset_zero(tmp_path):
+    source = pdf_with(tmp_path / "clean.pdf", 2)
+    shifted = tmp_path / "shifted.pdf"
+    # A blank line ahead of %PDF, as some producers emit.
+    shifted.write_bytes(b"\n\n" + source.read_bytes())
+    pdfops._require_pdf(shifted)
+    assert pdfops._page_count(shifted) == 2
+
+
+def test_require_pdf_still_rejects_a_file_with_no_header(tmp_path):
+    source = tmp_path / "notes.txt"
+    source.write_text("no header anywhere in this file")
+    with pytest.raises(BadInput, match="is not a PDF"):
+        pdfops._require_pdf(source)
+
+
+def test_require_pdf_ignores_a_header_beyond_the_search_window(tmp_path):
+    source = tmp_path / "late.pdf"
+    source.write_bytes(b"x" * (pdfops.HEADER_SEARCH_WINDOW + 8) + b"%PDF-1.7")
+    with pytest.raises(BadInput, match="is not a PDF"):
+        pdfops._require_pdf(source)
