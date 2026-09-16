@@ -13,11 +13,17 @@ from pdfc.registry import converter
 
 MIN_CHARS_PER_PAGE = 50
 
+# Anything wider than the text column is scaled down rather than run off the
+# page. Without the img rule a screenshot wider than the content area is simply
+# clipped at the margin, losing the right-hand side of the image with no
+# warning -- and terminal screenshots are nearly always wider than a text
+# column at 11pt.
 PAGE_CSS = """
 body { font-family: sans-serif; font-size: 11pt; line-height: 1.45; }
 pre { white-space: pre-wrap; font-family: monospace; font-size: 10pt; }
-table { border-collapse: collapse; }
+table { border-collapse: collapse; max-width: 100%; }
 td, th { border: 1px solid #999; padding: 4px 8px; }
+img { max-width: 100%; height: auto; }
 """
 
 
