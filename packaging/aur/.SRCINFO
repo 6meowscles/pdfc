@@ -1,6 +1,6 @@
 pkgbase = pdfc
 	pkgdesc = Local PDF converter: images, text, markdown, HTML and office formats in and out of PDF, plus merge/split/rotate/compress and OCR
-	pkgver = 0.3.1
+	pkgver = 0.3.2
 	pkgrel = 1
 	url = https://github.com/6meowscles/pdfc
 	arch = any
@@ -22,7 +22,7 @@ pkgbase = pdfc
 	optdepends = tesseract: OCR scanned PDFs
 	optdepends = tesseract-data-eng: English training data for OCR
 	optdepends = ocrmypdf: OCR scanned PDFs (AUR)
-	source = pdfc-0.3.1.tar.gz::https://github.com/6meowscles/pdfc/archive/refs/tags/v0.3.1.tar.gz
-	sha256sums = 60921df95ce56a23e261cf461ec9c84fcb1a1bb1f3b783f935863419a718a145
+	source = pdfc-0.3.2.tar.gz::https://github.com/6meowscles/pdfc/archive/refs/tags/v0.3.2.tar.gz
+	sha256sums = PLACEHOLDER_REGENERATE_AFTER_TAGGING
 
 pkgname = pdfc

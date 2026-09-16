@@ -1,5 +1,5 @@
 Name:           pdfc
-Version:        0.3.1
+Version:        0.3.2
 Release:        1%{?dist}
 Summary:        Local PDF converter: images, text, markdown, HTML and office formats
 
@@ -74,6 +74,9 @@ install -Dpm 0644 docs/design.md %{buildroot}%{_docdir}/%{name}/design.md
 %{_bindir}/pdfc
 
 %changelog
+* Wed Sep 16 2026 6meowscles <mharshita2309@gmail.com> - 0.3.2-1
+- Scale wide images and tables to the page instead of clipping them
+
 * Tue Sep 15 2026 6meowscles <mharshita2309@gmail.com> - 0.3.1-1
 - Name an unrecognised command instead of reporting a missing file
 - Drop the pdf to docx route LibreOffice could never perform
