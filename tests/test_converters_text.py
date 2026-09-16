@@ -1,5 +1,8 @@
 import pymupdf
 import pytest
+from click.testing import CliRunner
+
+from pdfc.cli import main
 
 from pdfc import deps
 from pdfc.formats import Format
@@ -200,3 +203,30 @@ def test_every_step_reports_what_it_produced(sample_md, tmp_path):
     assert "B" in intermediate
     # The final step names the destination the user asked for.
     assert "out.pdf" in final
+
+
+def test_an_image_wider_than_the_page_is_scaled_not_clipped(tmp_path):
+    """A screenshot wider than the text column used to run past the right
+    margin and be clipped, losing part of the image with no warning."""
+    import pymupdf
+    from PIL import Image
+
+    wide = tmp_path / "wide.png"
+    Image.new("RGB", (2000, 300), (10, 120, 200)).save(wide)
+
+    source = tmp_path / "doc.md"
+    source.write_text(f"# Heading\n\n![]({wide})\n")
+    target = tmp_path / "doc.pdf"
+
+    result = CliRunner().invoke(main, [str(source), str(target)])
+    assert result.exit_code == 0, result.output
+
+    with pymupdf.open(target) as doc:
+        page = doc[0]
+        blocks = [b for b in page.get_image_info()]
+        assert blocks, "the image did not reach the PDF at all"
+        placed = blocks[0]["bbox"]
+        assert placed[0] >= -1, "image starts left of the page"
+        assert placed[2] <= page.rect.width + 1, (
+            f"image runs to {placed[2]:.0f}pt on a {page.rect.width:.0f}pt page"
+        )
